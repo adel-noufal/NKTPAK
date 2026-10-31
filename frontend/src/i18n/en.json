@@ -1,0 +1,189 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "newProject": "New Project",
+    "projects": "Projects",
+    "workspace3D": "3D Workspace",
+    "optimization": "Optimization",
+    "standards": "Standards",
+    "analytics": "Analytics",
+    "aiAssistant": "AI Assistant",
+    "settings": "Settings"
+  },
+  "actions": {
+    "generatePackaging": "Generate Packaging",
+    "optimize": "Optimize",
+    "validateStandards": "Validate Standards",
+    "compareOptions": "Compare Options",
+    "viewInterior": "View Interior",
+    "viewExterior": "View Exterior",
+    "exportDesign": "Export Design",
+    "exportReport": "Export Report",
+    "newProject": "New Project",
+    "loadExample": "Load Example",
+    "saveProject": "Save Project",
+    "delete": "Delete",
+    "load": "Load",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "skip": "Skip",
+    "close": "Close",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
+  "labels": {
+    "SAMPLE DATA": "SAMPLE DATA",
+    "PUBLIC RETAIL DATA - UNVERIFIED": "PUBLIC RETAIL DATA - UNVERIFIED",
+    "USER ENTERED": "USER ENTERED",
+    "ESTIMATE": "ESTIMATE",
+    "UNVERIFIED": "UNVERIFIED",
+    "VERIFIED": "VERIFIED",
+    "NOT CONFIGURED": "NOT CONFIGURED",
+    "PLANNED": "PLANNED"
+  },
+  "status": {
+    "PASS": "PASS",
+    "FAIL": "FAIL",
+    "NEEDS_REVIEW": "NEEDS REVIEW",
+    "NOT_CONFIGURED": "NOT CONFIGURED",
+    "NOT_VERIFIABLE": "NOT VERIFIABLE"
+  },
+  "checkType": {
+    "PROGRAMMATIC": "PROGRAMMATIC",
+    "PHYSICAL_TEST": "PHYSICAL TEST",
+    "HUMAN_REVIEW": "HUMAN REVIEW"
+  },
+  "forms": {
+    "productName": "Product Name",
+    "productCategory": "Product Category",
+    "dimensions": "Dimensions",
+    "length": "Length",
+    "width": "Width",
+    "height": "Height",
+    "weight": "Weight (kg)",
+    "fragilityClass": "Fragility Class",
+    "dataLabel": "Data Label",
+    "provenanceNote": "Provenance / Source Note",
+    "boardThickness": "Board Thickness (mm)",
+    "boardType": "Board Type",
+    "hasInserts": "Has Inserts",
+    "insertMaterial": "Insert Material",
+    "costPerUnit": "Cost per Unit",
+    "currency": "Currency",
+    "clearancePreset": "Clearance Preset",
+    "insertThickness": "Insert Thickness (mm)",
+    "unit": "Unit",
+    "outerDimensions": "Outer Dimensions",
+    "required": "Required",
+    "optional": "Optional"
+  },
+  "fragility": {
+    "ROBUST": "Robust",
+    "STANDARD": "Standard",
+    "FRAGILE": "Fragile",
+    "VERY_FRAGILE": "Very Fragile"
+  },
+  "clearance": {
+    "minimal": "Minimal (tight fit)",
+    "standard": "Standard (recommended)",
+    "generous": "Generous (extra protection)"
+  },
+  "dashboard": {
+    "title": "NxtPak AI",
+    "subtitle": "Packaging Optimization Platform",
+    "subtitleAr": "منصة تحسين التغليف",
+    "description": "Design right-sized packaging with ISO standard validation and 3D preview.",
+    "recentProjects": "Recent Projects",
+    "quickActions": "Quick Actions",
+    "loadExample": "Load Example",
+    "noProjects": "No projects yet",
+    "noProjectsDesc": "Create your first packaging optimization project.",
+    "techNotice": "Geometry engine: trimesh | ISO registry: v1 (16 standards)",
+    "stats": {
+      "projects": "Total Projects",
+      "alternatives": "Alternatives Generated",
+      "standardsChecked": "Standards Checked"
+    }
+  },
+  "project": {
+    "step1": "Product Info",
+    "step2": "Baseline Packaging",
+    "step3": "Optimization Config",
+    "skipBaseline": "Skip — savings will show as NOT CONFIGURED",
+    "baselineOptional": "Baseline packaging is optional. If provided, savings calculations will be available.",
+    "recommended": "RECOMMENDED",
+    "alternative": "ALTERNATIVE",
+    "baseline": "BASELINE",
+    "volumeUtilization": "Volume Utilization",
+    "materialUsage": "Material Usage",
+    "costPerUnit": "Cost / Unit",
+    "savingsVsBaseline": "Savings vs Baseline",
+    "outerDims": "Outer Dimensions",
+    "innerDims": "Inner Dimensions",
+    "clearance": "Clearance",
+    "assumptions": "Assumptions",
+    "noBaseline": "No baseline packaging provided. Savings not available.",
+    "tabs": {
+      "workspace3D": "3D Workspace",
+      "optimization": "Optimization",
+      "standards": "Standards",
+      "export": "Export"
+    }
+  },
+  "standards": {
+    "title": "ISO Standards Evaluation",
+    "description": "Standards are evaluated against NxtPak ISO registry v1. No company-specific requirements loaded.",
+    "disclaimer": "Evaluated against: NxtPak ISO registry v1 (see source list). No company-specific requirements loaded.",
+    "softwarePassNote": "A software PASS is never proof of ISO certification.",
+    "checkTypes": {
+      "PROGRAMMATIC": "Software can compute this automatically",
+      "PHYSICAL_TEST": "Requires lab or factory physical testing",
+      "HUMAN_REVIEW": "Requires engineer judgment and review"
+    },
+    "columns": {
+      "standardId": "Standard ID",
+      "title": "Title",
+      "checkType": "Check Type",
+      "status": "Status",
+      "details": "Details",
+      "required": "What's Still Required"
+    }
+  },
+  "export": {
+    "title": "Export",
+    "pdf": "Export PDF Report",
+    "html": "Export HTML Report",
+    "json": "Export JSON Data",
+    "glb": "Export 3D Model (GLB)",
+    "glbPlanned": "GLB export — Planned",
+    "downloading": "Downloading...",
+    "success": "Export successful",
+    "error": "Export failed"
+  },
+  "viewer3D": {
+    "exterior": "Exterior View",
+    "interior": "Interior View",
+    "dimensions": "Dimensions",
+    "rotate": "Click + drag to rotate",
+    "zoom": "Scroll to zoom",
+    "noAlternative": "No packaging alternative selected"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Interface Language",
+    "optimizationDefaults": "Optimization Defaults",
+    "defaultClearance": "Default Clearance Preset",
+    "apiStatus": "API Connection Status",
+    "connected": "Connected",
+    "disconnected": "Disconnected"
+  },
+  "errors": {
+    "required": "This field is required",
+    "positiveNumber": "Must be a positive number",
+    "loadFailed": "Failed to load data",
+    "saveFailed": "Failed to save project",
+    "networkError": "Network error — is the backend running?"
+  }
+}

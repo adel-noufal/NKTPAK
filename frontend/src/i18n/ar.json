@@ -1,0 +1,82 @@
+{
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "newProject": "مشروع جديد",
+    "projects": "المشاريع",
+    "workspace3D": "مساحة العمل ثلاثية الأبعاد",
+    "optimization": "التحسين",
+    "standards": "المعايير القياسية",
+    "analytics": "التحليلات",
+    "aiAssistant": "المساعد الذكي (مخطط)",
+    "settings": "الإعدادات"
+  },
+  "actions": {
+    "generatePackaging": "توليد التغليف",
+    "optimize": "تحسين",
+    "validateStandards": "التحقق من المعايير",
+    "compareOptions": "مقارنة الخيارات",
+    "viewInterior": "عرض داخلي",
+    "viewExterior": "عرض خارجي",
+    "exportDesign": "تصدير التصميم",
+    "exportReport": "تصدير التقرير",
+    "newProject": "مشروع جديد",
+    "loadExample": "تحميل نموذج",
+    "saveProject": "حفظ المشروع",
+    "delete": "حذف",
+    "load": "تحميل",
+    "back": "رجوع",
+    "next": "التالي",
+    "submit": "تنفيذ",
+    "cancel": "إلغاء",
+    "skip": "تخطي",
+    "close": "إغلاق",
+    "expand": "توسيع",
+    "collapse": "طي"
+  },
+  "labels": {
+    "SAMPLE DATA": "بيانات تجريبية",
+    "PUBLIC RETAIL DATA - UNVERIFIED": "بيانات تجزئة عامة - غير مؤكدة",
+    "USER ENTERED": "مدخلة بواسطة المستخدم",
+    "ESTIMATE": "تقدير هندسي",
+    "UNVERIFIED": "غير موثق",
+    "VERIFIED": "موثق",
+    "NOT CONFIGURED": "غير مهيأ",
+    "PLANNED": "مخطط"
+  },
+  "status": {
+    "PASS": "مطابق",
+    "FAIL": "غير مطابق",
+    "NEEDS_REVIEW": "يتطلب مراجعة مهندس",
+    "NOT_CONFIGURED": "غير مهيأ",
+    "NOT_VERIFIABLE": "يتطلب اختباراً معملياً"
+  },
+  "checkType": {
+    "PROGRAMMATIC": "برمجي",
+    "PHYSICAL_TEST": "اختبار معملي",
+    "HUMAN_REVIEW": "مراجعة هندسية"
+  },
+  "forms": {
+    "productName": "اسم المنتج",
+    "productCategory": "فئة المنتج",
+    "length": "الطول",
+    "width": "العرض",
+    "height": "الارتفاع",
+    "weight": "الوزن",
+    "fragility": "درجة الحساسية / القابلية للكسر",
+    "baseline": "التغليف الحالي (خط الأساس)",
+    "boardThickness": "سُمك الكرتون",
+    "unitCost": "التكلفة للوحدة",
+    "clearance": "الخلوص الداخلي",
+    "boardType": "نوع الكرتون"
+  },
+  "dashboard": {
+    "title": "منظومة NxtPak للتحسين الذكي لتغليف المنتجات",
+    "subtitle": "تحسين أبعاد العبوات الكرتونية، وتقليل الهدر، والمطابقة مع معايير ISO للتغليف",
+    "quickStart": "نماذج جاهزة للتجربة السريعة",
+    "fanToshiba": "مروحة عمود (مرجع توشيبا)",
+    "blender": "خلاط منزلي (٤ أجزاء)",
+    "genericFan": "مروحة عمود قياسية",
+    "recentProjects": "أحدث المشاريع",
+    "noProjects": "لا توجد مشاريع حتى الآن. ابدأ بإنشاء مشروع جديد أو تجربة أحد النماذج الجاهزة."
+  }
+}

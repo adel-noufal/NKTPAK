@@ -1,0 +1,89 @@
+{
+  "example_id": "example-blender-4part",
+  "example_name": "Generic Table Blender (4 parts)",
+  "description": "A generic table blender consisting of 4 components. Users define the parts and their dimensions. All values are sample data.",
+  "data_label": "SAMPLE DATA",
+  "data_warning": "All values are sample data. In a real project, the user should define all 4 parts with actual measured dimensions.",
+  "provenance": {
+    "source_name": "NxtPak AI Sample Data",
+    "source_url": null,
+    "retrieval_date": "2026-10-31",
+    "verified": false
+  },
+  "product": {
+    "name": "Generic Table Blender",
+    "category": "Kitchen Appliance",
+    "fragility_class": "HIGH",
+    "fragility_note": "SAMPLE DATA — glass jar is fragile",
+    "milestone_note": "Milestone 1: product treated as single packed bounding box. Component-level arrangement planned for Milestone 2.",
+    "packed_bounding_box": {
+      "length_mm": 230,
+      "width_mm": 230,
+      "height_mm": 420,
+      "unit": "mm",
+      "label": "SAMPLE DATA",
+      "note": "User-entered packed bounding box of all components together"
+    },
+    "weight_kg": 2.8,
+    "weight_label": "SAMPLE DATA",
+    "components": [
+      {
+        "name": "Motor base",
+        "length_mm": 210,
+        "width_mm": 210,
+        "height_mm": 160,
+        "weight_kg": 1.5,
+        "fragility": "LOW",
+        "label": "SAMPLE DATA — user should enter actual dimensions"
+      },
+      {
+        "name": "Glass jar / pitcher",
+        "length_mm": 150,
+        "width_mm": 150,
+        "height_mm": 250,
+        "weight_kg": 0.7,
+        "fragility": "HIGH",
+        "label": "SAMPLE DATA — user should enter actual dimensions"
+      },
+      {
+        "name": "Lid",
+        "length_mm": 155,
+        "width_mm": 155,
+        "height_mm": 30,
+        "weight_kg": 0.1,
+        "fragility": "MEDIUM",
+        "label": "SAMPLE DATA — user should enter actual dimensions"
+      },
+      {
+        "name": "Blade assembly",
+        "length_mm": 140,
+        "width_mm": 140,
+        "height_mm": 80,
+        "weight_kg": 0.5,
+        "fragility": "MEDIUM",
+        "label": "SAMPLE DATA — user should enter actual dimensions"
+      }
+    ]
+  },
+  "baseline_packaging": {
+    "label": "SAMPLE DATA",
+    "carton": {
+      "outer_length_mm": 300,
+      "outer_width_mm": 300,
+      "outer_height_mm": 450,
+      "board_thickness_mm": 3.5,
+      "board_type": "Single wall corrugated C-flute"
+    },
+    "inserts": [
+      {"type": "Polystyrene", "description": "Top/bottom cradle", "quantity": 2},
+      {"type": "Cardboard divider", "description": "Component separator", "quantity": 1},
+      {"type": "Polyethylene bag", "description": "Jar protection", "quantity": 1}
+    ],
+    "unit_costs": {
+      "carton_cost_per_unit": 8.50,
+      "insert_cost_per_unit": 6.20,
+      "currency": "EGP",
+      "label": "SAMPLE DATA — not real prices"
+    }
+  }
+}

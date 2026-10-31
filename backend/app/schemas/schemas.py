@@ -1,6 +1,7 @@
 """
 NxtPak AI — All Pydantic schemas (request/response models).
-Explicit units everywhere. Validates on entry; rejects impossible values.
+Revision v6: Real data model with provenance, components, optional baseline board thickness.
+Explicit units everywhere. Never fabricates numeric values.
 """
 
 from __future__ import annotations
@@ -29,6 +30,16 @@ class DimensionUnit(str, Enum):
     INCH = "inch"
 
 
+class SourceType(str, Enum):
+    EL_ARABY_DATASHEET = "EL_ARABY_DATASHEET"
+    EL_ARABY_WEBSITE = "EL_ARABY_WEBSITE"
+    PUBLIC_RETAIL = "PUBLIC_RETAIL"
+    USER_ENTERED = "USER_ENTERED"
+    DERIVED = "DERIVED"
+    SAMPLE_DATA = "SAMPLE_DATA"
+    OFFICIAL_COMPANY = "OFFICIAL_COMPANY"
+
+
 class DataLabel(str, Enum):
     SAMPLE_DATA = "SAMPLE DATA"
     SAMPLE_DATA_ALT = "SAMPLE_DATA"
@@ -39,6 +50,9 @@ class DataLabel(str, Enum):
     UNVERIFIED = "UNVERIFIED"
     ESTIMATE = "ESTIMATE"
     VERIFIED = "VERIFIED"
+    EL_ARABY_DATASHEET = "EL_ARABY_DATASHEET"
+    EL_ARABY_WEBSITE = "EL_ARABY_WEBSITE"
+    DERIVED = "DERIVED"
 
 
 class CheckType(str, Enum):
@@ -62,7 +76,24 @@ class AlternativeRank(str, Enum):
 
 
 # ─────────────────────────────────────────────
-# Product Input Schemas
+# Provenance (used everywhere)
+# ─────────────────────────────────────────────
+
+class Provenance(BaseModel):
+    source_name: str
+    source_url: Optional[str] = None
+    retrieval_date: Optional[str] = None
+    source_type: SourceType = SourceType.USER_ENTERED
+    is_edited: bool = False
+    evidence_snippet: Optional[str] = None
+    # Legacy compat
+    data_label: Optional[str] = None
+    verified: bool = False
+    verification_note: Optional[str] = None
+
+
+# ─────────────────────────────────────────────
+# Product & Component Schemas
 # ─────────────────────────────────────────────
 
 class DimensionsInput(BaseModel):
@@ -78,47 +109,47 @@ class DimensionsInput(BaseModel):
 
 
 class ComponentInput(BaseModel):
+    """A packed component (part as shipped, not assembled)."""
     name: str = Field(..., min_length=1, max_length=100)
     length_mm: Optional[float] = Field(None, gt=0, le=10000)
     width_mm: Optional[float] = Field(None, gt=0, le=10000)
     height_mm: Optional[float] = Field(None, gt=0, le=10000)
     weight_kg: Optional[float] = Field(None, gt=0, le=1000)
+    quantity: int = Field(default=1, ge=1)
     fragility: Optional[FragilityClass] = None
     notes: Optional[str] = Field(None, max_length=500)
+    provenance: Optional[Provenance] = None
 
-
-class Provenance(BaseModel):
-    source_name: str
-    source_url: Optional[str] = None
-    retrieval_date: Optional[str] = None
-    data_label: DataLabel = DataLabel.USER_ENTERED
-    verified: bool = False
-    verification_note: Optional[str] = None
+    @property
+    def has_dimensions(self) -> bool:
+        return all(v is not None for v in [self.length_mm, self.width_mm, self.height_mm])
 
 
 class ProductInput(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
+    model: Optional[str] = Field(None, max_length=100)
+    brand: Optional[str] = Field(None, max_length=100)
     category: Optional[str] = Field(None, max_length=100)
-    packed_dimensions: DimensionsInput
-    weight_kg: float = Field(..., gt=0, le=10000, description="Packed weight in kg")
-    fragility_class: FragilityClass = FragilityClass.MEDIUM
-    fragility_note: Optional[str] = Field(
-        None, max_length=200,
-        description="Note: fragility class is user-selected and not independently verified"
-    )
+    # assembled_envelope is for reference display; the optimizer works from components
+    packed_dimensions: Optional[DimensionsInput] = None
+    weight_kg: Optional[float] = Field(None, gt=0, le=10000, description="Net weight in kg")
+    fragility_class: Optional[FragilityClass] = None  # No hidden default — required user choice
+    fragility_note: Optional[str] = Field(None, max_length=200)
     components: List[ComponentInput] = Field(default_factory=list)
     provenance: Optional[Provenance] = None
+    notes: Optional[str] = Field(None, max_length=1000)
 
     @field_validator("weight_kg")
     @classmethod
-    def weight_reasonable(cls, v: float) -> float:
-        if v > 5000:
+    def weight_reasonable(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v > 5000:
             raise ValueError("Weight exceeds 5000 kg — please verify")
         return v
 
 
 # ─────────────────────────────────────────────
-# Baseline Packaging Schemas
+# Baseline Packaging Schema
+# board_thickness_mm is Optional — may not be known
 # ─────────────────────────────────────────────
 
 class InsertInput(BaseModel):
@@ -135,25 +166,34 @@ class BaselinePackaging(BaseModel):
     carton_outer_length_mm: float = Field(..., gt=0, le=10000)
     carton_outer_width_mm: float = Field(..., gt=0, le=10000)
     carton_outer_height_mm: float = Field(..., gt=0, le=10000)
-    board_thickness_mm: float = Field(..., gt=0, le=50, description="Corrugated board wall thickness")
-    board_type: Optional[str] = Field(None, max_length=100, description="e.g. Single wall B-flute, Double wall")
+    # board_thickness is optional: unknown until user measures it
+    board_thickness_mm: Optional[float] = Field(None, gt=0, le=50,
+        description="Corrugated board wall thickness — leave None if unknown")
+    board_type: Optional[str] = Field(None, max_length=100)
     inserts: List[InsertInput] = Field(default_factory=list)
     carton_cost_per_unit: Optional[float] = Field(None, ge=0)
     total_insert_cost_per_unit: Optional[float] = Field(None, ge=0)
     currency: Optional[str] = Field(None, max_length=10)
     data_label: DataLabel = DataLabel.USER_ENTERED
     notes: Optional[str] = Field(None, max_length=500)
+    provenance: Optional[Provenance] = None
 
     @property
-    def inner_length_mm(self) -> float:
+    def inner_length_mm(self) -> Optional[float]:
+        if self.board_thickness_mm is None:
+            return None
         return self.carton_outer_length_mm - 2 * self.board_thickness_mm
 
     @property
-    def inner_width_mm(self) -> float:
+    def inner_width_mm(self) -> Optional[float]:
+        if self.board_thickness_mm is None:
+            return None
         return self.carton_outer_width_mm - 2 * self.board_thickness_mm
 
     @property
-    def inner_height_mm(self) -> float:
+    def inner_height_mm(self) -> Optional[float]:
+        if self.board_thickness_mm is None:
+            return None
         return self.carton_outer_height_mm - 2 * self.board_thickness_mm
 
     @property
@@ -164,48 +204,69 @@ class BaselinePackaging(BaseModel):
 
 
 # ─────────────────────────────────────────────
+# Planned Packaging (user's own proposed dims)
+# ─────────────────────────────────────────────
+
+class PlannedPackaging(BaseModel):
+    """User's manually entered planned packaging for comparison."""
+    carton_outer_length_mm: float = Field(..., gt=0, le=10000)
+    carton_outer_width_mm: float = Field(..., gt=0, le=10000)
+    carton_outer_height_mm: float = Field(..., gt=0, le=10000)
+    board_thickness_mm: Optional[float] = Field(None, gt=0, le=50)
+    notes: Optional[str] = Field(None, max_length=500)
+    provenance: Optional[Provenance] = None
+
+
+# ─────────────────────────────────────────────
 # Optimization Config
+# Clearances labeled as engineering assumptions, no ISO badge
 # ─────────────────────────────────────────────
 
 class OptimizationConfig(BaseModel):
     min_clearance_mm: float = Field(
         default=15.0, ge=0, le=200,
-        description="Minimum clearance between product and inner carton wall (mm). Assumption recorded."
+        description="Engineering assumption: minimum clearance between product and inner carton wall (mm)."
     )
     standard_clearance_mm: float = Field(
         default=25.0, ge=0, le=200,
-        description="Standard clearance for normal handling (mm). Assumption recorded."
+        description="Engineering assumption: standard clearance for normal handling (mm)."
     )
     generous_clearance_mm: float = Field(
         default=40.0, ge=0, le=200,
-        description="Generous clearance for high-fragility products (mm). Assumption recorded."
+        description="Engineering assumption: generous clearance for high-fragility products (mm)."
     )
     board_thickness_mm: float = Field(
         default=4.0, ge=1, le=20,
-        description="Assumed corrugated board thickness for alternatives (mm). Assumption recorded."
+        description="Assumed corrugated board thickness for alternatives (mm). Engineering assumption."
     )
     insert_thickness_mm: float = Field(
         default=25.0, ge=0, le=100,
-        description="Assumed cushion/insert thickness per side (mm). Assumption recorded."
+        description="Assumed cushion/insert thickness per side (mm). Engineering assumption."
     )
-    # ISO 3676 unit load check (optional)
+    assumption_label: str = Field(
+        default="ENGINEERING_ASSUMPTION",
+        description="These clearances are user-editable engineering assumptions, not ISO-specified values."
+    )
+    # ISO 3676 unit load check (optional, user-configured)
     unit_load_length_mm: Optional[float] = Field(None, gt=0)
     unit_load_width_mm: Optional[float] = Field(None, gt=0)
     unit_load_height_mm: Optional[float] = Field(None, gt=0)
-    # ISO 3394 modular dimensions check (optional)
+    # ISO 3394 modular dimensions (optional, user-configured)
     module_length_mm: Optional[float] = Field(None, gt=0)
     module_width_mm: Optional[float] = Field(None, gt=0)
 
 
 # ─────────────────────────────────────────────
-# Project Create / Update Schemas
+# Project Create
 # ─────────────────────────────────────────────
 
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     product: ProductInput
+    components: List[ComponentInput] = Field(default_factory=list)
     baseline: Optional[BaselinePackaging] = None
+    planned: Optional[PlannedPackaging] = None
     optimization_config: OptimizationConfig = Field(default_factory=OptimizationConfig)
     language: Literal["en", "ar"] = Field(default="en")
 
@@ -242,16 +303,16 @@ class CostBreakdown(BaseModel):
     total_cost: Optional[float] = None
     currency: Optional[str] = None
     cost_label: DataLabel = DataLabel.USER_ENTERED
-    cost_status: str = "NOT_CONFIGURED"  # NOT_CONFIGURED if no baseline costs
+    cost_status: str = "NOT_CONFIGURED"
 
 
 class SavingsMetrics(BaseModel):
-    # ISO 18602 metrics
+    # ISO 18602-style metrics
     volume_utilization: float = Field(description="Product volume / packaging internal volume (0-1)")
     volume_utilization_pct: float = Field(description="Volume utilization as percentage")
     volume_utilization_formula: str = "product_volume_mm³ / packaging_internal_volume_mm³"
 
-    # vs baseline (None if no baseline)
+    # vs baseline (None if no baseline or board thickness unknown)
     material_saved_pct: Optional[float] = Field(None, description="Material reduction vs baseline (%)")
     material_saved_cm3: Optional[float] = Field(None, description="Material volume saved vs baseline (cm³)")
     material_savings_formula: str = "(baseline_usage - proposed_usage) / baseline_usage × 100"
@@ -263,6 +324,9 @@ class SavingsMetrics(BaseModel):
     baseline_available: bool = False
     savings_status: str = Field(
         description="NOT_CONFIGURED if baseline missing; CALCULATED if computed from user-entered baseline"
+    )
+    inputs_used: Optional[List[str]] = Field(
+        None, description="Which input fields this metric rests on"
     )
 
 
@@ -283,10 +347,11 @@ class PackagingAlternative(BaseModel):
     inner_width_mm: float
     inner_height_mm: float
 
-    # Clearances used
+    # Clearances used (engineering assumptions — not ISO-mandated values)
     clearance_length_mm: float
     clearance_width_mm: float
     clearance_height_mm: float
+    clearance_label: str = "ENGINEERING_ASSUMPTION — user-editable, not an ISO-specified value"
 
     # Insert/cushioning
     insert_thickness_mm: float
@@ -369,6 +434,89 @@ class StandardsEvaluationResult(BaseModel):
         "Physical-test standards require laboratory execution. "
         "No compliance certificates are generated."
     )
+
+
+# ─────────────────────────────────────────────
+# Fetch / Upload schemas
+# ─────────────────────────────────────────────
+
+class FetchProductRequest(BaseModel):
+    """Request to auto-fetch product data from El Araby or a URL."""
+    model_number: Optional[str] = Field(None, max_length=50)
+    product_url: Optional[str] = Field(None, max_length=500)
+
+    @model_validator(mode="after")
+    def at_least_one(self) -> "FetchProductRequest":
+        if not self.model_number and not self.product_url:
+            raise ValueError("Provide either model_number or product_url")
+        return self
+
+
+class FetchedFieldValue(BaseModel):
+    """A single fetched field with provenance and evidence."""
+    field_name: str
+    value: Any
+    unit: Optional[str] = None
+    source_url: str
+    evidence_snippet: str
+    source_type: SourceType
+    retrieval_date: str
+    is_edited: bool = False
+
+
+class FetchProductResult(BaseModel):
+    """Result from fetching product data — all fields show their source."""
+    success: bool
+    error: Optional[str] = None
+    source_url: Optional[str] = None
+    source_type: Optional[SourceType] = None
+    retrieved_at: Optional[str] = None
+    fields: List[FetchedFieldValue] = Field(default_factory=list)
+    unresolved_fields: List[str] = Field(
+        default_factory=list,
+        description="Fields the parser could not find — must be entered manually"
+    )
+    warning: Optional[str] = None
+
+
+class UploadFileResult(BaseModel):
+    """Result from parsing an uploaded 3D/CAD file."""
+    success: bool
+    file_name: str
+    file_type: str  # stl, obj, glb, step, dxf, dwg
+    error: Optional[str] = None
+    warning: Optional[str] = None
+    components: List[ComponentInput] = Field(default_factory=list)
+    bounding_box_mm: Optional[Dict[str, float]] = None
+    units_confirmed: bool = False
+    units_assumed: Optional[str] = None
+
+
+# ─────────────────────────────────────────────
+# AI Assistant schemas
+# ─────────────────────────────────────────────
+
+class AssistantMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: Optional[str] = None
+
+
+class AssistantRequest(BaseModel):
+    project_id: Optional[str] = None
+    message: str = Field(..., min_length=1, max_length=2000)
+    page_context: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Structured context from the current page: route, open tab, visible values, etc."
+    )
+    history: List[AssistantMessage] = Field(default_factory=list)
+
+
+class AssistantResponse(BaseModel):
+    reply: str
+    mode: Literal["ai", "offline"] = "offline"
+    fields_cited: List[str] = Field(default_factory=list)
+    disclaimer: Optional[str] = None
 
 
 # ─────────────────────────────────────────────

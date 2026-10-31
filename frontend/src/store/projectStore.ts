@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ProjectDetail, PackagingAlternative } from '../types'
 
-export type ViewMode = 'exterior' | 'interior'
+export type ViewMode = 'box' | 'inside' | 'product'
 export type Language = 'en' | 'ar'
+export type Theme = 'light' | 'dark' | 'system'
 
 interface ProjectState {
   currentProject: ProjectDetail | null
@@ -14,10 +15,12 @@ interface ProjectState {
 
   selectedView: ViewMode
   setSelectedView: (view: ViewMode) => void
-  toggleView: () => void
 
   language: Language
   setLanguage: (lang: Language) => void
+
+  theme: Theme
+  setTheme: (theme: Theme) => void
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -27,17 +30,18 @@ export const useProjectStore = create<ProjectState>()(
       setCurrentProject: (project) => {
         set({
           currentProject: project,
-          currentAlternative: project?.optimization_result?.recommended || project?.optimization_result?.alternatives?.[0] || null,
+          currentAlternative:
+            project?.optimization_result?.recommended ||
+            project?.optimization_result?.alternatives?.[0] ||
+            null,
         })
       },
 
       currentAlternative: null,
       setCurrentAlternative: (alt) => set({ currentAlternative: alt }),
 
-      selectedView: 'exterior',
+      selectedView: 'box',
       setSelectedView: (view) => set({ selectedView: view }),
-      toggleView: () =>
-        set({ selectedView: get().selectedView === 'exterior' ? 'interior' : 'exterior' }),
 
       language: 'en',
       setLanguage: (lang) => {
@@ -45,10 +49,36 @@ export const useProjectStore = create<ProjectState>()(
         document.documentElement.lang = lang
         set({ language: lang })
       },
+
+      theme: 'dark',
+      setTheme: (theme) => {
+        const resolved =
+          theme === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+            : theme
+        document.documentElement.classList.toggle('dark', resolved === 'dark')
+        set({ theme })
+      },
     }),
     {
       name: 'nxtpak-store',
-      partialize: (state) => ({ language: state.language }),
+      partialize: (state) => ({ language: state.language, theme: state.theme }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Re-apply theme on reload
+          const resolved =
+            state.theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : state.theme
+          document.documentElement.classList.toggle('dark', resolved === 'dark')
+          document.documentElement.dir = state.language === 'ar' ? 'rtl' : 'ltr'
+          document.documentElement.lang = state.language
+        }
+      },
     }
   )
 )

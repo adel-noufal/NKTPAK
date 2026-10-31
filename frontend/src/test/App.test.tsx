@@ -18,8 +18,8 @@ describe('NxtPak AI Frontend Shell', () => {
     )
 
     // Check brand title
-    expect(screen.getByText(/NxtPak AI/i)).toBeInTheDocument()
-    expect(screen.getByText(/Dashboard/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/NxtPak AI/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Dashboard/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/New Project/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Standards/i).length).toBeGreaterThan(0)
   })

@@ -10,20 +10,21 @@
 
 | Capability | Status |
 |---|---|
-| Manual product dimension entry (L×W×H, weight, fragility) | ✅ Milestone 1 |
-| Baseline packaging entry (carton, inserts, costs) | ✅ Milestone 1 |
-| 2–3 deterministic packaging alternatives + recommendation | ✅ Milestone 1 |
-| Interactive 3D viewer — Exterior & Interior views | ✅ Milestone 1 |
-| Material usage & cost savings vs baseline | ✅ Milestone 1 |
-| ISO packaging standards registry (16 standards) | ✅ Milestone 1 |
-| PDF / HTML / JSON report export | ✅ Milestone 1 |
-| Arabic (RTL) + English UI | ✅ Milestone 1 |
-| Save & reopen projects (SQLite) | ✅ Milestone 1 |
-| Example projects (Toshiba fan, Generic fan, Blender) | ✅ Milestone 1 |
-| 3D/CAD file upload | 🔜 Milestone 2 |
-| Natural language product description (LLM) | 🔜 Milestone 3 |
-| GLB export | 🔜 Milestone 2 |
-| AI Assistant | 🔜 Milestone 3 |
+| Manual product dimension entry (L×W×H, weight, fragility) | ✅ Implemented |
+| Baseline packaging entry (carton, optional board thickness, costs) | ✅ Implemented |
+| 2–3 deterministic packaging alternatives + recommendation | ✅ Implemented |
+| Interactive 3D viewer — Box, Inside the box & Product alone views | ✅ Implemented |
+| Side-by-side comparison (Actual baseline / My plan / Proposed) | ✅ Implemented |
+| Material usage & cost savings vs baseline with transparent formulas | ✅ Implemented |
+| ISO packaging standards registry (16 standards) | ✅ Implemented |
+| El Araby product fetch service (TSF-16W & BL500/2 offline fixtures) | ✅ Implemented |
+| 3D / CAD file upload (STL, OBJ, GLB, STEP, DXF; honest DWG message) | ✅ Implemented |
+| Page-aware AI assistant (offline rule-based + optional Gemini LLM) | ✅ Implemented |
+| Light, dark, and system theme switching | ✅ Implemented |
+| PDF / HTML / JSON report export | ✅ Implemented |
+| Arabic (RTL) + English UI | ✅ Implemented |
+| Save & reopen projects (SQLite) | ✅ Implemented |
+| Real El Araby reference products (TSF-16W fan, BL500/2 blender) | ✅ Implemented |
 
 ---
 

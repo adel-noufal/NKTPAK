@@ -23,6 +23,8 @@ without lowering the required protection level.
    fall back to numpy + trimesh. Document which engine is active.
 5. **No AI 3D generation models.** Packaging geometry is parametric, deterministic code only.
 6. **No paid API secrets committed.** Use environment variables only; never commit `.env`.
+7. **No fake or invented data.** Never assign invented numeric values to any field. If unknown, leave it null and label it "Not available — enter it". Presets must use real El Araby data only.
+8. **Data provenance on every field.** Every record carries source_name, source_url, retrieval_date, source_type, and is_edited flag. Clearances are labeled "ENGINEERING_ASSUMPTION" and never given a false ISO badge.
 
 ---
 
@@ -151,6 +153,9 @@ Frontend: `http://localhost:5173`
 | Validation | `backend/app/validation/` | Dimensional consistency, constraint checks |
 | Reporting | `backend/app/reporting/` | PDF/HTML + JSON report generation |
 | Exports | `backend/app/exports/` | File export (PDF, JSON, GLB prep) |
+| Fetch Service | `backend/app/services/fetch_service.py` | El Araby product fetch and offline fixtures |
+| Upload Service | `backend/app/services/upload_service.py` | 3D/CAD parsing (STL, OBJ, GLB, STEP, DXF) |
+| Assistant Service | `backend/app/services/assistant_service.py` | Page-aware assistant with offline fallback |
 
 ---
 

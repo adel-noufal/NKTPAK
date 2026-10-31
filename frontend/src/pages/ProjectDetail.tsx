@@ -6,12 +6,23 @@ import { PackagingViewer3D } from '../components/viewer/PackagingViewer3D'
 import { AlternativeComparison } from '../components/optimization/AlternativeComparison'
 import { StandardsTable } from '../components/standards/StandardsTable'
 import { ExportPanel } from '../components/export/ExportPanel'
-import { DataBadge } from '../components/common/DataBadge'
+import { ComparisonPanel } from '../components/comparison/ComparisonPanel'
 import type { PackagingAlternative } from '../types'
+
+type TabId = '3d' | 'comparison' | 'side-by-side' | 'standards' | 'export'
+
+const tabs: { id: TabId; label: string }[] = [
+  { id: '3d', label: '3D Workspace' },
+  { id: 'comparison', label: 'Alternatives' },
+  { id: 'side-by-side', label: 'Comparison' },
+  { id: 'standards', label: 'ISO Standards' },
+  { id: 'export', label: 'Export' },
+]
 
 export const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const [activeTab, setActiveTab] = useState<'3d' | 'comparison' | 'standards' | 'export'>('3d')
+  const [activeTab, setActiveTab] = useState<TabId>('3d')
+  const [selectedAlt, setSelectedAlt] = useState<PackagingAlternative | null>(null)
 
   const { data: project, isLoading, error } = useQuery({
     queryKey: ['project', id],
@@ -19,10 +30,6 @@ export const ProjectDetail: React.FC = () => {
     enabled: !!id,
   })
 
-  // Selected alternative in 3D viewer
-  const [selectedAlt, setSelectedAlt] = useState<PackagingAlternative | null>(null)
-
-  // Auto-select recommended when loaded
   React.useEffect(() => {
     if (project?.optimization_result?.recommended && !selectedAlt) {
       setSelectedAlt(project.optimization_result.recommended)
@@ -32,18 +39,18 @@ export const ProjectDetail: React.FC = () => {
   if (isLoading) {
     return (
       <div className="py-20 text-center text-slate-400 text-sm">
-        <div className="inline-block w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
-        <p>Loading project and computed 3D models...</p>
+        <div className="inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <p>Loading project…</p>
       </div>
     )
   }
 
   if (error || !project) {
     return (
-      <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-6 rounded-xl text-center space-y-3">
+      <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-6 rounded-lg text-center space-y-3">
         <p className="font-semibold text-sm">Could not load project</p>
-        <p className="text-xs text-rose-400">{(error as any)?.message || 'Project not found'}</p>
-        <Link to="/" className="inline-block px-4 py-2 rounded-lg bg-slate-800 text-white text-xs">
+        <p className="text-xs">{(error as any)?.message || 'Project not found'}</p>
+        <Link to="/" className="inline-block px-4 py-2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs">
           Return to Dashboard
         </Link>
       </div>
@@ -54,206 +61,196 @@ export const ProjectDetail: React.FC = () => {
   const stdResult = project.standards_result
   const alternatives = optResult?.alternatives || []
   const activeAlt = selectedAlt || optResult?.recommended || alternatives[0]
+  const isDraft = project.status === 'draft'
 
-  const productData = project.product_data || {}
-  const productDims = {
-    length: productData.packed_dimensions?.length || 300,
-    width: productData.packed_dimensions?.width || 200,
-    height: productData.packed_dimensions?.height || 150,
-  }
+  const productData: any = project.product_data || {}
+  const productDims = productData.packed_dimensions
+    ? {
+        length: productData.packed_dimensions.length,
+        width: productData.packed_dimensions.width,
+        height: productData.packed_dimensions.height,
+      }
+    : null
 
   return (
-    <div className="space-y-6">
-      {/* Project Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+    <div className="space-y-6 pb-16">
+      {/* Breadcrumb + header */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link to="/projects" className="text-xs text-blue-400 hover:underline">
-              ← Projects
+          <div className="flex items-center gap-2 mb-1 text-xs">
+            <Link to="/projects" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Projects
             </Link>
-            <span className="text-slate-600">/</span>
-            <span className="text-xs text-slate-400">{project.product_data?.category || 'General'}</span>
+            <span className="text-slate-400">/</span>
+            <span className="text-slate-500 truncate max-w-xs">{project.name}</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 leading-snug">
             {project.name}
           </h1>
-          <div className="flex flex-wrap items-center gap-2.5 mt-2 text-xs text-slate-400">
-            <DataBadge label={project.product_data?.provenance?.data_label || 'USER ENTERED'} />
-            <span className="text-slate-600">•</span>
-            <span>
-              Product:{' '}
-              <strong className="text-slate-200">
-                {productDims.length} × {productDims.width} × {productDims.height} mm
-              </strong>
-            </span>
-            <span className="text-slate-600">•</span>
-            <span>
-              Weight: <strong className="text-slate-200">{productData.weight_kg} kg</strong>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-500">
+            {productData.model && (
+              <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{productData.model}</span>
+            )}
+            {productData.weight_kg && (
+              <span>Net weight: <strong>{productData.weight_kg} kg</strong></span>
+            )}
+            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${
+              isDraft
+                ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+            }`}>
+              {isDraft ? 'Draft' : project.status}
             </span>
           </div>
         </div>
 
-        {/* Quick export button */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('export')}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-all flex items-center gap-2"
-          >
-            <span>📑</span>
-            <span>Download Engineering Report</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('export')}
+          className="shrink-0 px-3.5 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition-colors flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Export Report
+        </button>
       </div>
 
-      {/* Optimization Highlights Banner */}
-      {activeAlt && (
-        <div className="bg-gradient-to-r from-blue-950/70 via-slate-900 to-indigo-950/70 border border-blue-900/40 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-lg font-bold border border-blue-500/30">
-              {activeAlt.rank === 'RECOMMENDED' ? '⭐' : '📦'}
+      {/* Draft banner */}
+      {isDraft && (
+        <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <strong>Draft project — optimization not yet run.</strong>
+          <br />
+          <span className="text-xs">
+            Add the measured dimensions of each packed component to run optimization.
+            Component suggestions are listed below.
+          </span>
+        </div>
+      )}
+
+      {/* Optimization highlights — only when results exist */}
+      {!isDraft && activeAlt && (
+        <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-lg p-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{activeAlt.name}</span>
+              {activeAlt.rank === 'RECOMMENDED' && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                  RECOMMENDED CANDIDATE
+                </span>
+              )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-100 text-sm">{activeAlt.name}</span>
-                {activeAlt.rank === 'RECOMMENDED' && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    RECOMMENDED CANDIDATE
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">{activeAlt.description}</p>
-            </div>
+            <p className="text-xs text-slate-400 mt-0.5">{activeAlt.description}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-            <div className="bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 text-[10px] block uppercase tracking-wider">Vol. Utilization</span>
-              <span className="text-blue-400 font-bold text-sm">{activeAlt.savings.volume_utilization_pct}%</span>
+          <div className="flex flex-wrap gap-3 text-xs font-mono">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md">
+              <span className="block text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Volume utilization</span>
+              <span className="text-blue-600 dark:text-blue-400 font-bold">
+                {activeAlt.savings.volume_utilization_pct.toFixed(1)}%
+              </span>
             </div>
-            {activeAlt.savings.savings_status === 'CALCULATED' ? (
-              <>
-                <div className="bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
-                  <span className="text-slate-400 text-[10px] block uppercase tracking-wider">Material Saved</span>
-                  <span className={`font-bold text-sm ${activeAlt.savings.material_saved_pct! >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {activeAlt.savings.material_saved_pct}%
-                  </span>
-                </div>
-                {activeAlt.savings.cost_saved !== null && activeAlt.savings.cost_saved !== undefined && (
-                  <div className="bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block uppercase tracking-wider">Unit Savings</span>
-                    <span className="text-emerald-400 font-bold text-sm">
-                      {activeAlt.savings.cost_saved} {activeAlt.savings.currency || activeAlt.cost.currency || ''}
-                    </span>
-                  </div>
-                )}
-              </>
+            {activeAlt.savings.savings_status === 'CALCULATED' && activeAlt.savings.material_saved_pct != null ? (
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md">
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Material saved</span>
+                <span className={`font-bold ${activeAlt.savings.material_saved_pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}`}>
+                  {activeAlt.savings.material_saved_pct.toFixed(1)}%
+                </span>
+              </div>
             ) : (
-              <div className="bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
-                <span className="text-slate-400 text-[10px] block uppercase tracking-wider">Savings vs Baseline</span>
-                <span className="text-amber-400 font-bold text-xs">NO BASELINE CONFIGURED</span>
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md">
+                <span className="block text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Savings</span>
+                <span className="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">Needs baseline</span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Main Navigation Tabs */}
-      <div className="flex border-b border-slate-800 text-xs font-semibold gap-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('3d')}
-          className={`py-3 px-4 border-b-2 transition-all flex items-center gap-1.5 ${
-            activeTab === '3d'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>📦</span>
-          <span>3D Workspace</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('comparison')}
-          className={`py-3 px-4 border-b-2 transition-all flex items-center gap-1.5 ${
-            activeTab === 'comparison'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>📊</span>
-          <span>Optimization & Savings</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('standards')}
-          className={`py-3 px-4 border-b-2 transition-all flex items-center gap-1.5 ${
-            activeTab === 'standards'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>📜</span>
-          <span>ISO Standards Evaluation ({stdResult?.results?.length || 16})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('export')}
-          className={`py-3 px-4 border-b-2 transition-all flex items-center gap-1.5 ${
-            activeTab === 'export'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>📑</span>
-          <span>Exports (PDF/HTML)</span>
-        </button>
-      </div>
-
-      {/* Tab 1: 3D Workspace */}
-      {activeTab === '3d' && (
-        <div className="space-y-6">
-          <PackagingViewer3D alternative={activeAlt} productDims={productDims} />
-
-          {/* Quick Alternative Switcher under 3D canvas */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Select Candidate Alternative:
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {alternatives.map((alt) => {
-                const isSelected = activeAlt?.alternative_id === alt.alternative_id
-                return (
-                  <div
-                    key={alt.alternative_id}
-                    onClick={() => setSelectedAlt(alt)}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-blue-950/40 border-blue-500 shadow-md'
-                        : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-white">{alt.name}</span>
-                      {alt.rank === 'RECOMMENDED' && (
-                        <span className="text-[10px] font-bold text-emerald-400">RECOMMENDED</span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      {alt.outer_length_mm} × {alt.outer_width_mm} × {alt.outer_height_mm} mm
-                    </div>
-                    <div className="text-[11px] text-blue-400 font-bold mt-1">
-                      {alt.savings.volume_utilization_pct}% volume utilization
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+      {/* Result disclaimer */}
+      {!isDraft && optResult && (
+        <div className="text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded px-3 py-2">
+          {optResult.result_warning}
+          {' '}Evaluated against: NxtPak ISO registry v1. No company-specific requirements loaded.
         </div>
       )}
 
-      {/* Tab 2: Optimization & Comparison */}
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto text-xs font-medium gap-0.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`whitespace-nowrap py-2.5 px-4 border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
+            }`}
+          >
+            {tab.label}
+            {tab.id === 'standards' && stdResult && (
+              <span className="ms-1.5 px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 text-[10px]">
+                {stdResult.results.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: 3D Workspace */}
+      {activeTab === '3d' && (
+        <div className="space-y-6">
+          {isDraft ? (
+            <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center text-slate-400">
+              <p className="text-sm">3D visualization is available after optimization runs.</p>
+              <p className="text-xs mt-1">Add component dimensions and re-run optimization.</p>
+            </div>
+          ) : (
+            <PackagingViewer3D alternative={activeAlt} productDims={productDims} />
+          )}
+
+          {/* Alternative selector */}
+          {alternatives.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Alternatives
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {alternatives.map((alt) => {
+                  const isSelected = activeAlt?.alternative_id === alt.alternative_id
+                  return (
+                    <div
+                      key={alt.alternative_id}
+                      onClick={() => setSelectedAlt(alt)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-xs text-slate-800 dark:text-slate-100">{alt.name}</span>
+                        {alt.rank === 'RECOMMENDED' && (
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">RECOMMENDED</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        {alt.outer_length_mm} × {alt.outer_width_mm} × {alt.outer_height_mm} mm
+                      </div>
+                      <div className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
+                        {alt.savings.volume_utilization_pct.toFixed(1)}% utilization
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Alternatives table */}
       {activeTab === 'comparison' && (
         <AlternativeComparison
           alternatives={alternatives}
@@ -266,14 +263,23 @@ export const ProjectDetail: React.FC = () => {
         />
       )}
 
-      {/* Tab 3: Standards */}
+      {/* Tab: Side-by-side comparison */}
+      {activeTab === 'side-by-side' && (
+        <ComparisonPanel
+          baseline={project.baseline_data}
+          planned={project.planned_data}
+          proposed={activeAlt}
+        />
+      )}
+
+      {/* Tab: ISO Standards */}
       {activeTab === 'standards' && <StandardsTable evaluationResult={stdResult} />}
 
-      {/* Tab 4: Export */}
+      {/* Tab: Export */}
       {activeTab === 'export' && (
         <ExportPanel
           projectId={project.project_id}
-          alternativeId={activeAlt?.alternative_id || 'alt-1'}
+          alternativeId={activeAlt?.alternative_id || ''}
           projectName={project.name}
         />
       )}

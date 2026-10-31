@@ -1,0 +1,64 @@
+{
+  "example_id": "bl500-2",
+  "example_name": "Tornado Electric Blender 500W 1.5L (BL500/2)",
+  "model": "BL500/2",
+  "brand": "Tornado",
+  "category": "Kitchen Appliances",
+  "description": "Tornado electric blender BL500/2, 500 W, 1.5 L, 2 mills. Packaged as 4 distinct pieces.",
+  "data_label": "EL_ARABY_WEBSITE",
+  "provenance": {
+    "source_name": "El Araby official product page",
+    "source_url": "https://www.elarabygroup.com/en/tornado-electric-blender-500-watt-1-5-liter-2-mills-black-bl500-2-black",
+    "retrieval_date": "2026-10-31",
+    "source_type": "EL_ARABY_WEBSITE",
+    "is_edited": false,
+    "evidence_snippet": "TORNADO Electric Blender 500 Watt, 1.5 Liters, 2 Mills Black BL500/2-Black | Net weight: 2.6 Kg - Gross weight: 2.8 Kg | Country of origin: Egypt | 1 Year full free warranty"
+  },
+  "product": {
+    "name": "Tornado Electric Blender 500W 1.5L (BL500/2)",
+    "model": "BL500/2",
+    "brand": "Tornado",
+    "category": "Kitchen Appliances",
+    "assembled_envelope": null,
+    "net_weight_kg": 2.6,
+    "gross_weight_kg": 2.8,
+    "packaging_mass_kg": 0.2,
+    "packaging_mass_formula": "2.8 kg (gross) - 2.6 kg (net) = 0.2 kg packaging mass",
+    "technical_specs": {
+      "power_watts": "500 W",
+      "capacity_liters": "1.5 L",
+      "voltage": "220 V",
+      "speeds": "2 speeds + pulse",
+      "jug_material": "Transparent break-resistant plastic jug",
+      "blades": "Stainless steel blades",
+      "mills_count": 2,
+      "country_of_origin": "Egypt",
+      "warranty": "1 year warranty",
+      "variants": ["BL500/2-BLACK", "BL500/2-GRAY", "BL500/2-DBLUE"]
+    },
+    "spare_parts_info": [
+      "Compatible spare SKU MX-R-JAR-5200-PK: 'Tornado 400-500W Transparent Electric Blender Jug Set', Fast Forward, listed on elarabygroup.com"
+    ],
+    "unverified_notes": [
+      "Amazon Egypt package listing: 35.6 x 33 x 21.8 cm at 5.95 kg. Note: 5.95 kg contradicts El Araby's 2.8 kg gross specification. Stored as unverified lead only; NOT used as baseline unless confirmed."
+    ],
+    "notes": "Blender ships as 4 pieces (motor base, 1.5L jug, mill 1, mill 2). Enter measured piece dimensions.",
+    "fragility_class": null
+  },
+  "components": [],
+  "component_suggestions": [
+    "Motor base",
+    "1.5 L blender jug",
+    "Grinding mill 1",
+    "Grinding mill 2"
+  ],
+  "baseline": null,
+  "planned": null,
+  "optimization_config": {
+    "min_clearance_mm": 15.0,
+    "standard_clearance_mm": 25.0,
+    "generous_clearance_mm": 40.0,
+    "board_thickness_mm": 4.0,
+    "insert_thickness_mm": 20.0
+  }
+}

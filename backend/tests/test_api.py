@@ -44,13 +44,16 @@ def test_health_endpoint():
 
 
 def test_list_examples_endpoint():
+    """
+    v6: Only real El Araby products are included (TSF-16W and BL500/2).
+    Fake examples (stand-fan-toshiba, stand-fan-generic, blender-4part) were removed.
+    """
     examples = list_examples_endpoint()
     assert isinstance(examples, list)
-    assert len(examples) >= 3
+    assert len(examples) >= 2
     ids = [e["example_id"] for e in examples]
-    assert "example-stand-fan-toshiba" in ids
-    assert "example-stand-fan-generic" in ids
-    assert "example-blender-4part" in ids
+    assert "tsf-16w" in ids
+    assert "bl500-2" in ids
 
 
 def test_create_project_endpoint(db_session):
@@ -103,11 +106,19 @@ def test_create_project_endpoint(db_session):
 
 
 def test_load_example_endpoint(db_session):
+    """
+    v6: Loading an example creates a DRAFT project — no optimization runs because
+    component dimensions are not yet known. The response has optimization_status
+    and next_step instead of pipeline_result.
+    """
     examples = list_examples_endpoint()
     assert len(examples) > 0
     first_ex_id = examples[0]["example_id"]
 
     data = load_example_endpoint(first_ex_id, db=db_session)
     assert "project_id" in data
-    assert "pipeline_result" in data
-    assert len(data["pipeline_result"]["optimization_result"]["alternatives"]) == 3
+    assert data["status"] == "draft"
+    assert data["optimization_status"] == "AWAITING_COMPONENT_DIMENSIONS"
+    assert "next_step" in data
+    # pipeline_result is NOT present — dimensions not yet available
+    assert "pipeline_result" not in data

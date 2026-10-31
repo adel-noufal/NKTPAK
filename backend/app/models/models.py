@@ -23,12 +23,15 @@ class Project(Base):
     status: Mapped[str] = mapped_column(String(50), default="draft")
     language: Mapped[str] = mapped_column(String(5), default="en")
 
-    # Stored as JSON blobs for flexibility in milestone 1
+    # Stored as JSON blobs for data model in Revision v6
     product_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    components_data: Mapped[list] = mapped_column(JSON, nullable=True, default=list)
     baseline_data: Mapped[dict] = mapped_column(JSON, nullable=True)
+    planned_data: Mapped[dict] = mapped_column(JSON, nullable=True)
     optimization_config: Mapped[dict] = mapped_column(JSON, nullable=True)
     optimization_result: Mapped[dict] = mapped_column(JSON, nullable=True)
     standards_result: Mapped[dict] = mapped_column(JSON, nullable=True)
+    chat_history: Mapped[list] = mapped_column(JSON, nullable=True, default=list)
 
     # Selected alternative
     selected_alternative_id: Mapped[str] = mapped_column(String(36), nullable=True)

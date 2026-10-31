@@ -32,6 +32,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Initializing NxtPak database...")
     init_db()
 
+    # Run v6 schema migration: add new columns, purge legacy fake demo projects
+    from app.core.migration import run_database_migrations
+    run_database_migrations()
+
     active_geom = get_active_engine()
     logger.info("Active Geometry Engine: %s", active_geom)
 

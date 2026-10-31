@@ -1,29 +1,190 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { listProjects, listExamples, loadExample } from '../api/projects'
-import { DataBadge } from '../components/common/DataBadge'
+import React from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listProjects, listExamples, loadExample, deleteProject } from '../api/projects'
+import type { ExampleProject } from '../types'
+
+// ── Source badge ──────────────────────────────────────────────
+
+const SourceBadge: React.FC<{ sourceType?: string }> = ({ sourceType }) => {
+  const labels: Record<string, { label: string; className: string }> = {
+    EL_ARABY_DATASHEET: { label: 'El Araby Datasheet', className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
+    EL_ARABY_WEBSITE: { label: 'El Araby Website', className: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' },
+    DERIVED: { label: 'Derived', className: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
+    USER_ENTERED: { label: 'User Entered', className: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
+  }
+  const def = labels[sourceType ?? ''] ?? { label: sourceType ?? 'Unknown', className: 'bg-slate-100 dark:bg-slate-800 text-slate-500' }
+  return (
+    <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${def.className}`}>
+      {def.label}
+    </span>
+  )
+}
+
+// ── Example Card ──────────────────────────────────────────────
+
+const ExampleCard: React.FC<{
+  example: ExampleProject
+  onLoad: () => void
+  loading: boolean
+}> = ({ example, onLoad, loading }) => (
+  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3 hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
+    <div className="flex items-start justify-between gap-2">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">
+          {example.example_name}
+        </h3>
+        {example.model && (
+          <p className="text-xs text-slate-500 font-mono mt-0.5">{example.model}</p>
+        )}
+      </div>
+      <SourceBadge sourceType={example.source_type} />
+    </div>
+
+    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+      {example.description}
+    </p>
+
+    {example.available_fields && example.available_fields.length > 0 && (
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+          Available
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {example.available_fields.slice(0, 6).map((f) => (
+            <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              {f}
+            </span>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {example.missing_fields && example.missing_fields.length > 0 && (
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-wider">
+          Not available — must be measured
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {example.missing_fields.slice(0, 4).map((f) => (
+            <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+              {f}
+            </span>
+          ))}
+          {example.missing_fields.length > 4 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400">
+              +{example.missing_fields.length - 4} more
+            </span>
+          )}
+        </div>
+      </div>
+    )}
+
+    <button
+      type="button"
+      onClick={onLoad}
+      disabled={loading}
+      className="w-full py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    >
+      {loading ? 'Loading…' : 'Load as Draft Project'}
+    </button>
+  </div>
+)
+
+// ── Project Row ───────────────────────────────────────────────
+
+const ProjectRow: React.FC<{
+  project: any
+  onDelete: () => void
+  deleting: boolean
+}> = ({ project, onDelete, deleting }) => {
+  const navigate = useNavigate()
+  const statusColors: Record<string, string> = {
+    draft: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20',
+    completed: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20',
+    failed: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20',
+  }
+  const statusClass = statusColors[project.status] ?? 'text-slate-500 bg-slate-100 dark:bg-slate-800'
+
+  return (
+    <tr className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+      <td className="py-3 px-4">
+        <button
+          type="button"
+          onClick={() => navigate(`/projects/${project.project_id}`)}
+          className="text-sm font-medium text-slate-800 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 text-left"
+        >
+          {project.name}
+        </button>
+        {project.product_name && (
+          <p className="text-xs text-slate-400 mt-0.5">
+            {project.product_name}
+            {project.product_model && <span className="font-mono ml-1">({project.product_model})</span>}
+          </p>
+        )}
+      </td>
+      <td className="py-3 px-4">
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusClass}`}>
+          {project.status}
+        </span>
+      </td>
+      <td className="py-3 px-4 text-xs text-slate-400">
+        {project.has_results ? (
+          <span className="text-emerald-600 dark:text-emerald-400">Results ready</span>
+        ) : (
+          <span className="text-slate-400">No results yet</span>
+        )}
+      </td>
+      <td className="py-3 px-4 text-xs text-slate-400">
+        {new Date(project.updated_at).toLocaleDateString()}
+      </td>
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(`/projects/${project.project_id}`)}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 disabled:opacity-40"
+          >
+            Delete
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// ── Dashboard ─────────────────────────────────────────────────
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate()
-  const [searchFilter, setSearchFilter] = useState('')
+  const queryClient = useQueryClient()
 
   const { data: projects = [], isLoading: loadingProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: listProjects,
   })
 
-  const { data: examples = [] } = useQuery({
+  const { data: examples = [], isLoading: loadingExamples } = useQuery({
     queryKey: ['examples'],
     queryFn: listExamples,
   })
 
   const [loadingExampleId, setLoadingExampleId] = React.useState<string | null>(null)
+  const [deletingId, setDeletingId] = React.useState<string | null>(null)
 
   const handleLoadExample = async (exampleId: string) => {
     try {
       setLoadingExampleId(exampleId)
       const res = await loadExample(exampleId)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
       navigate(`/projects/${res.project_id}`)
     } catch (err: any) {
       alert(`Could not load example: ${err.message}`)
@@ -32,234 +193,159 @@ export const Dashboard: React.FC = () => {
     }
   }
 
-  const filteredProjects = projects.filter((p) =>
-    p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    (p.product_name && p.product_name.toLowerCase().includes(searchFilter.toLowerCase()))
-  )
+  const handleDelete = async (projectId: string) => {
+    if (!confirm('Delete this project? This cannot be undone.')) return
+    try {
+      setDeletingId(projectId)
+      await deleteProject(projectId)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    } catch (err: any) {
+      alert(`Delete failed: ${err.message}`)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* Friendly Hero Banner */}
-      <div className="relative rounded-2xl bg-gradient-to-br from-blue-950 via-slate-900 to-indigo-950 p-6 sm:p-8 border border-slate-800 shadow-2xl overflow-hidden">
-        <div className="absolute top-0 end-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-300 text-xs font-semibold border border-blue-500/30">
-            <span>✨</span>
-            <span>NXTPAK Hackathon — El Araby Group Challenge</span>
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
-            Right-Sized Packaging with Deterministic 3D Optimization
-          </h1>
-
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-            Save cardboard, foam cushioning, and shipping volume without compromising product safety.
-            Compute material & cost savings against your current baseline packaging, inspect 3D interior/exterior
-            fits, and evaluate against the 16 ISO packaging standards registry.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => navigate('/projects/new')}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>➕</span>
-              <span>Create New Project</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleLoadExample('stand_fan_toshiba_type')}
-              disabled={loadingExampleId !== null}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 font-semibold text-xs sm:text-sm border border-indigo-500/40 transition-all flex items-center gap-2 disabled:opacity-50"
-            >
-              <span>⚡</span>
-              <span>{loadingExampleId === 'stand_fan_toshiba_type' ? 'Loading Demo...' : 'Instant Toshiba Demo'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/standards')}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm border border-slate-700 transition-all flex items-center gap-2"
-            >
-              <span>📜</span>
-              <span>ISO Standards Registry</span>
-            </button>
-          </div>
-        </div>
+    <div className="space-y-10 pb-16">
+      {/* Header */}
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+          NxtPak AI
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Parametric packaging optimization for El Araby Group.
+          Recommends right-sized cartons, shows 3D interior/exterior fit, and evaluates against ISO packaging standards.
+        </p>
       </div>
 
-      {/* 3-Step Simple Workflow Guide */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800/90 relative overflow-hidden group hover:border-slate-700 transition-all">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 font-black text-sm flex items-center justify-center border border-blue-500/20 mb-3">
-            1
-          </div>
-          <h3 className="font-bold text-slate-100 text-sm mb-1 flex items-center gap-1.5">
-            <span>📏</span> Enter Product & Baseline
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Specify product dimensions, weight, and existing box baseline. Or choose one of the preloaded factory examples.
-          </p>
-        </div>
-
-        <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800/90 relative overflow-hidden group hover:border-slate-700 transition-all">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-500/20 mb-3">
-            2
-          </div>
-          <h3 className="font-bold text-slate-100 text-sm mb-1 flex items-center gap-1.5">
-            <span>📦</span> 3D Exterior & Interior Review
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Inspect the right-sized packaging alternatives in 3D. Toggle between outer box view and translucent interior cushioning fit.
-          </p>
-        </div>
-
-        <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800/90 relative overflow-hidden group hover:border-slate-700 transition-all">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 font-black text-sm flex items-center justify-center border border-emerald-500/20 mb-3">
-            3
-          </div>
-          <h3 className="font-bold text-slate-100 text-sm mb-1 flex items-center gap-1.5">
-            <span>📑</span> Savings & ISO Standards Audit
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Verify ISO 18602 volume reduction and required physical tests. Export printable PDF, HTML, or JSON specifications.
-          </p>
-        </div>
+      {/* Start options */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          {
+            title: 'Load a real product',
+            desc: 'Start from TSF-16W or BL500/2 with verified El Araby data.',
+            action: () => {},  // handled below by example cards
+            disabled: true,
+          },
+          {
+            title: 'Enter manually',
+            desc: 'Enter product dimensions, weight, and baseline carton yourself.',
+            action: () => navigate('/projects/new?start=manual'),
+            disabled: false,
+          },
+          {
+            title: 'Fetch from El Araby',
+            desc: 'Enter a model number or URL to auto-fetch known product data.',
+            action: () => navigate('/projects/new?start=fetch'),
+            disabled: false,
+          },
+          {
+            title: 'Upload 3D / CAD',
+            desc: 'Upload STL, OBJ, GLB, STEP, or DXF to extract dimensions.',
+            action: () => navigate('/projects/new?start=upload'),
+            disabled: false,
+          },
+        ].map((opt) => (
+          <button
+            key={opt.title}
+            type="button"
+            onClick={opt.action}
+            disabled={opt.disabled}
+            className={`text-left p-4 rounded-lg border transition-all ${
+              opt.disabled
+                ? 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 opacity-60 cursor-default'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm'
+            }`}
+          >
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">{opt.title}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{opt.desc}</p>
+          </button>
+        ))}
       </div>
 
-      {/* Quick Start Reference Examples */}
+      {/* Reference examples */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <span>⚡</span> 1-Click Reference Examples
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Instantly test packaging generation, 3D visualization, and standards checks with verified hackathon data.
-            </p>
+          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+            Reference Products
+            <span className="ml-2 text-xs font-normal text-slate-400">Real El Araby data only</span>
+          </h2>
+        </div>
+
+        {loadingExamples ? (
+          <p className="text-sm text-slate-400">Loading examples…</p>
+        ) : examples.length === 0 ? (
+          <p className="text-sm text-slate-400">No reference products available.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {examples.map((ex) => (
+              <ExampleCard
+                key={ex.example_id}
+                example={ex}
+                onLoad={() => handleLoadExample(ex.example_id)}
+                loading={loadingExampleId === ex.example_id}
+              />
+            ))}
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {examples.map((ex) => (
-            <div
-              key={ex.example_id}
-              className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 flex flex-col justify-between hover:border-blue-500/50 hover:bg-slate-900/80 transition-all shadow-md group"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-2xl">
-                    {ex.example_id.includes('fan') ? '💨' : '🥤'}
-                  </span>
-                  <DataBadge label={ex.data_label} />
-                </div>
-                <h3 className="font-bold text-slate-100 text-sm group-hover:text-blue-400 transition-colors">
-                  {ex.example_name}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{ex.description}</p>
-                {ex.data_warning && (
-                  <p className="text-[11px] text-amber-400/90 mt-2 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20 flex items-start gap-1">
-                    <span>⚠️</span>
-                    <span>{ex.data_warning}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleLoadExample(ex.example_id)}
-                disabled={loadingExampleId !== null}
-                className="mt-4 w-full py-2.5 px-3 rounded-lg bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loadingExampleId === ex.example_id ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Computing 3D Optimization...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🚀</span>
-                    <span>Load & View in 3D</span>
-                  </>
-                )}
-              </button>
-            </div>
-          ))}
-        </div>
+        <p className="text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-3 py-2">
+          Reference products use real data from El Araby datasheets and product pages.
+          Fields marked "Not available" are genuinely unknown — they must be measured on site before optimization can run.
+          No values are invented.
+        </p>
       </div>
 
-      {/* Recent Projects List */}
+      {/* Projects table */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <span>📁</span> Saved Optimization Projects ({projects.length})
-            </h2>
-            <p className="text-xs text-slate-400">
-              Access previously generated packaging calculations and engineering models.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="Search projects..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-48"
-            />
-            <button
-              type="button"
-              onClick={() => navigate('/projects')}
-              className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1"
-            >
-              All →
-            </button>
-          </div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+            Your Projects
+          </h2>
+          <Link
+            to="/projects/new"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            New project
+          </Link>
         </div>
 
         {loadingProjects ? (
-          <div className="p-8 text-center text-xs text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800 flex items-center justify-center gap-2">
-            <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span>Loading saved projects...</span>
-          </div>
-        ) : filteredProjects.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800 space-y-2">
-            <p className="font-semibold text-slate-300">
-              {searchFilter ? 'No matching projects found.' : 'No projects saved yet.'}
-            </p>
-            <p className="text-slate-500">
-              Create your first packaging optimization above or click any reference example to get started in 1 click!
+          <p className="text-sm text-slate-400">Loading projects…</p>
+        ) : projects.length === 0 ? (
+          <div className="text-center py-10 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
+            <p className="text-sm text-slate-500 dark:text-slate-400">No projects yet.</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Start from a real product above or{' '}
+              <Link to="/projects/new" className="text-blue-600 dark:text-blue-400 hover:underline">
+                enter values manually
+              </Link>.
             </p>
           </div>
         ) : (
-          <div className="bg-slate-900/60 rounded-xl border border-slate-800 divide-y divide-slate-800 shadow-md">
-            {filteredProjects.slice(0, 6).map((p) => (
-              <div
-                key={p.project_id}
-                onClick={() => navigate(`/projects/${p.project_id}`)}
-                className="p-4 flex items-center justify-between hover:bg-slate-800/40 cursor-pointer transition-colors"
-              >
-                <div>
-                  <div className="font-semibold text-slate-200 text-sm flex items-center gap-2">
-                    <span>{p.name}</span>
-                    <span className="text-[10px] text-blue-400 font-mono">
-                      {p.product_name}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    Created: {new Date(p.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-blue-400 font-semibold px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors">
-                    Open 3D Results →
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Project</th>
+                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Results</th>
+                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Updated</th>
+                  <th className="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-slate-900">
+                {projects.map((p) => (
+                  <ProjectRow
+                    key={p.project_id}
+                    project={p}
+                    onDelete={() => handleDelete(p.project_id)}
+                    deleting={deletingId === p.project_id}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

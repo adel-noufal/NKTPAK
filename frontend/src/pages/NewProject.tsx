@@ -1,569 +1,741 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { createProject } from '../api/projects'
-import { FragilityClass, ProjectCreate } from '../types'
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { createProject, fetchProduct, uploadModel } from '../api/projects'
+import type {
+  FragilityClass,
+  ProductInput,
+  BaselinePackaging,
+  OptimizationConfig,
+  FetchProductResult,
+  UploadFileResult,
+  ComponentInput,
+} from '../types'
 
-export const NewProject: React.FC = () => {
+// ── Start mode ────────────────────────────────────────────────
+
+type StartMode = 'select' | 'manual' | 'fetch' | 'upload'
+
+// ── Sub-components ────────────────────────────────────────────
+
+const Label: React.FC<{ children: React.ReactNode; note?: string; required?: boolean }> = ({
+  children, note, required,
+}) => (
+  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+    {children}
+    {required && <span className="text-red-500 ml-0.5">*</span>}
+    {note && <span className="text-slate-400 font-normal ml-1.5">({note})</span>}
+  </label>
+)
+
+const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string; note?: string; required?: boolean }> = ({
+  label, note, required, ...props
+}) => (
+  <div>
+    <Label note={note} required={required}>{label}</Label>
+    <input
+      {...props}
+      className="w-full px-3 py-2 text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+    />
+  </div>
+)
+
+const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; note?: string; required?: boolean }> = ({
+  label, note, required, children, ...props
+}) => (
+  <div>
+    <Label note={note} required={required}>{label}</Label>
+    <select
+      {...props}
+      className="w-full px-3 py-2 text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+    >
+      {children}
+    </select>
+  </div>
+)
+
+// ── Fetch flow ────────────────────────────────────────────────
+
+const FetchFlow: React.FC<{
+  onFetched: (result: FetchProductResult) => void
+  onSkip: () => void
+}> = ({ onFetched, onSkip }) => {
+  const [modelNumber, setModelNumber] = useState('')
+  const [url, setUrl] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<FetchProductResult | null>(null)
+
+  const handleFetch = async () => {
+    if (!modelNumber.trim() && !url.trim()) {
+      setError('Enter a model number or URL.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetchProduct({
+        model_number: modelNumber.trim() || null,
+        product_url: url.trim() || null,
+      })
+      setResult(res)
+      if (res.success) onFetched(res)
+    } catch (err: any) {
+      setError(err.message ?? 'Fetch failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1">
+          Fetch from El Araby
+        </h2>
+        <p className="text-xs text-slate-500">
+          Enter a model number (e.g. <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">TSF-16W</code>,{' '}
+          <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">BL500/2</code>) or a product page URL.
+          Supported offline: TSF-16W and BL500/2.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Input
+          label="Model number"
+          note="e.g. TSF-16W"
+          value={modelNumber}
+          onChange={(e) => setModelNumber(e.target.value)}
+          placeholder="TSF-16W"
+        />
+        <Input
+          label="Product page URL"
+          note="optional"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://www.elarabygroup.com/…"
+        />
+      </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-3 py-2 text-xs text-red-700 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {result && !result.success && result.error && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          {result.error}
+        </div>
+      )}
+
+      {result?.success && (
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded px-3 py-2 space-y-2">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            Fetched {result.fields.length} field(s) — continuing to form below.
+          </p>
+          {result.warning && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">{result.warning}</p>
+          )}
+          {result.unresolved_fields.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                Not available — must be entered manually:
+              </p>
+              <ul className="text-[11px] text-slate-500 space-y-0.5">
+                {result.unresolved_fields.map((f) => (
+                  <li key={f} className="flex items-start gap-1">
+                    <span className="text-amber-500 shrink-0">•</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={handleFetch}
+          disabled={loading}
+          className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+        >
+          {loading ? 'Fetching…' : 'Fetch product data'}
+        </button>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="px-4 py-2 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+        >
+          Skip — enter manually
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Upload flow ───────────────────────────────────────────────
+
+const UploadFlow: React.FC<{
+  onUploaded: (result: UploadFileResult) => void
+  onSkip: () => void
+}> = ({ onUploaded, onSkip }) => {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<UploadFileResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFile = async (file: File) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await uploadModel(file)
+      setResult(res)
+      if (res.success) onUploaded(res)
+    } catch (err: any) {
+      setError(err.message ?? 'Upload failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1">
+          Upload 3D / CAD File
+        </h2>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Supported formats: STL, OBJ, GLB/GLTF (via trimesh), DXF (via ezdxf), STEP (if CadQuery installed).
+          <br />
+          <span className="text-amber-600 dark:text-amber-400 font-semibold">DWG is not supported</span> by free libraries — export to DXF or STEP from your CAD tool.
+        </p>
+      </div>
+
+      <div
+        className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
+        onClick={() => fileRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault()
+          const file = e.dataTransfer.files[0]
+          if (file) handleFile(file)
+        }}
+      >
+        <svg className="w-8 h-8 mx-auto mb-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        <p className="text-sm text-slate-500">{loading ? 'Parsing file…' : 'Click or drag file here'}</p>
+        <p className="text-[11px] text-slate-400 mt-1">STL · OBJ · GLB · STEP · DXF — max 50 MB</p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".stl,.obj,.glb,.gltf,.step,.stp,.dxf"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+        />
+      </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-3 py-2 text-xs text-red-700 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div className={`rounded px-3 py-2 border text-xs space-y-1 ${result.success
+          ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+          : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+          {result.success ? (
+            <>
+              <p className="font-semibold text-emerald-700 dark:text-emerald-400">
+                Parsed {result.components.length} component(s) from {result.file_name}
+              </p>
+              {result.warning && <p className="text-amber-600 dark:text-amber-400">{result.warning}</p>}
+              <p className="text-slate-500">Units assumed: {result.units_assumed ?? 'mm'}. Confirm before running optimization.</p>
+            </>
+          ) : (
+            <p className="text-red-700 dark:text-red-400">{result.error}</p>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onSkip}
+          className="px-4 py-2 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+        >
+          Skip — enter manually
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main form ─────────────────────────────────────────────────
+
+const FRAGILITY_OPTIONS: { value: FragilityClass; label: string; desc: string }[] = [
+  { value: 'LOW' as FragilityClass, label: 'Low', desc: 'Robust, non-fragile items' },
+  { value: 'MEDIUM' as FragilityClass, label: 'Medium', desc: 'Standard appliances' },
+  { value: 'HIGH' as FragilityClass, label: 'High', desc: 'Electronics, glass, sensitive parts' },
+  { value: 'VERY_HIGH' as FragilityClass, label: 'Very High', desc: 'Precision instruments, displays' },
+]
+
+const MainForm: React.FC<{
+  prefillComponents?: ComponentInput[]
+  prefillProductName?: string
+  prefillWeight?: number | null
+}> = ({ prefillComponents, prefillProductName, prefillWeight }) => {
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Step state (1: Product, 2: Baseline, 3: Clearances)
-  const [step, setStep] = useState<number>(1)
+  // Product
+  const [name, setName] = useState(prefillProductName ?? '')
+  const [model, setModel] = useState('')
+  const [brand, setBrand] = useState('')
+  const [weightKg, setWeightKg] = useState<string>(prefillWeight ? String(prefillWeight) : '')
+  const [fragility, setFragility] = useState<FragilityClass | ''>('')
 
-  // Product Fields
-  const [name, setName] = useState('Stand Fan Packaging Project')
-  const [category, setCategory] = useState('Home Appliances')
-  const [length, setLength] = useState<number>(500)
-  const [width, setWidth] = useState<number>(400)
-  const [height, setHeight] = useState<number>(1250)
-  const [unit, setUnit] = useState<'mm' | 'cm' | 'inch'>('mm')
-  const [weightKg, setWeightKg] = useState<number>(6.5)
-  const [fragility, setFragility] = useState<FragilityClass>(FragilityClass.MEDIUM)
+  // Dimensions (manual)
+  const [hasDims, setHasDims] = useState(false)
+  const [dimL, setDimL] = useState('')
+  const [dimW, setDimW] = useState('')
+  const [dimH, setDimH] = useState('')
+  const [dimUnit, setDimUnit] = useState<'mm' | 'cm' | 'inch'>('mm')
 
-  // Baseline Fields (Optional)
-  const [includeBaseline, setIncludeBaseline] = useState(true)
-  const [baseOuterL, setBaseOuterL] = useState<number>(570)
-  const [baseOuterW, setBaseOuterW] = useState<number>(480)
-  const [baseOuterH, setBaseOuterH] = useState<number>(1320)
-  const [baseBoardTh, setBaseBoardTh] = useState<number>(5)
-  const [baseBoardType, setBaseBoardType] = useState('Double wall corrugated')
-  const [baseUnitCost, setBaseUnitCost] = useState<number>(18.5)
+  // Baseline
+  const [includeBaseline, setIncludeBaseline] = useState(false)
+  const [baseL, setBaseL] = useState('')
+  const [baseW, setBaseW] = useState('')
+  const [baseH, setBaseH] = useState('')
+  const [baseBoardTh, setBaseBoardTh] = useState('')
+  const [baseBoardType, setBaseBoardType] = useState('')
+  const [baseUnitCost, setBaseUnitCost] = useState('')
   const [baseCurrency, setBaseCurrency] = useState('EGP')
-
-  // Optimization Config
-  const [minClearance, setMinClearance] = useState<number>(15)
-  const [stdClearance, setStdClearance] = useState<number>(25)
-  const [generousClearance, setGenerousClearance] = useState<number>(40)
-  const [boardThickness, setBoardThickness] = useState<number>(4)
-  const [insertThickness, setInsertThickness] = useState<number>(25)
-
-  // Quick Preset Handlers
-  const handleApplyPreset = (presetType: 'fan' | 'blender' | 'electronics') => {
-    if (presetType === 'fan') {
-      setName('Stand Fan Packaging Project')
-      setCategory('Home Appliances')
-      setLength(500)
-      setWidth(400)
-      setHeight(1250)
-      setWeightKg(6.5)
-      setFragility(FragilityClass.MEDIUM)
-      setBaseOuterL(570)
-      setBaseOuterW(480)
-      setBaseOuterH(1320)
-    } else if (presetType === 'blender') {
-      setName('Table Blender Packaging Project')
-      setCategory('Kitchen Appliances')
-      setLength(230)
-      setWidth(230)
-      setHeight(420)
-      setWeightKg(2.8)
-      setFragility(FragilityClass.HIGH)
-      setBaseOuterL(300)
-      setBaseOuterW(300)
-      setBaseOuterH(450)
-    } else {
-      setName('Electronics Packaging Project')
-      setCategory('Consumer Electronics')
-      setLength(350)
-      setWidth(250)
-      setHeight(80)
-      setWeightKg(1.4)
-      setFragility(FragilityClass.HIGH)
-      setBaseOuterL(420)
-      setBaseOuterW(320)
-      setBaseOuterH(140)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
 
-    // Convert dimensions to mm if cm/inch selected
-    const factor = unit === 'cm' ? 10 : unit === 'inch' ? 25.4 : 1.0
-    const finalL = length * factor
-    const finalW = width * factor
-    const finalH = height * factor
-
-    if (finalL <= 0 || finalW <= 0 || finalH <= 0 || weightKg <= 0) {
-      setError('Please ensure dimensions and weight are greater than zero.')
+    if (!name.trim()) {
+      setError('Project name is required.')
+      return
+    }
+    if (!fragility) {
+      setError('Fragility class is required — please select one.')
       return
     }
 
-    const payload: ProjectCreate = {
-      name,
-      description: `Packaging optimization for ${name}`,
-      language: 'en',
-      product: {
-        name,
-        category,
-        packed_dimensions: {
-          length: finalL,
-          width: finalW,
-          height: finalH,
-          unit: 'mm',
-        },
-        weight_kg: weightKg,
-        fragility_class: fragility,
-        provenance: {
-          source_name: 'User manual input',
-          data_label: 'USER ENTERED',
-        },
-      },
-      baseline: includeBaseline
-        ? {
-            carton_outer_length_mm: baseOuterL,
-            carton_outer_width_mm: baseOuterW,
-            carton_outer_height_mm: baseOuterH,
-            board_thickness_mm: baseBoardTh,
-            board_type: baseBoardType,
-            carton_cost_per_unit: baseUnitCost,
-            currency: baseCurrency,
-            data_label: 'USER ENTERED',
-          }
+    const product: ProductInput = {
+      name: name.trim(),
+      model: model.trim() || undefined,
+      brand: brand.trim() || undefined,
+      weight_kg: weightKg ? parseFloat(weightKg) : undefined,
+      fragility_class: fragility as FragilityClass,
+      packed_dimensions: hasDims && dimL && dimW && dimH
+        ? { length: parseFloat(dimL), width: parseFloat(dimW), height: parseFloat(dimH), unit: dimUnit }
         : undefined,
-      optimization_config: {
-        min_clearance_mm: minClearance,
-        standard_clearance_mm: stdClearance,
-        generous_clearance_mm: generousClearance,
-        board_thickness_mm: boardThickness,
-        insert_thickness_mm: insertThickness,
-      },
+      components: prefillComponents ?? [],
+      provenance: { source_name: 'User entered', source_type: 'USER_ENTERED' as any, is_edited: false },
     }
 
+    const baseline: BaselinePackaging | undefined = includeBaseline && baseL && baseW && baseH
+      ? {
+          carton_outer_length_mm: parseFloat(baseL),
+          carton_outer_width_mm: parseFloat(baseW),
+          carton_outer_height_mm: parseFloat(baseH),
+          board_thickness_mm: baseBoardTh ? parseFloat(baseBoardTh) : undefined,
+          board_type: baseBoardType.trim() || undefined,
+          carton_cost_per_unit: baseUnitCost ? parseFloat(baseUnitCost) : undefined,
+          currency: baseCurrency.trim() || undefined,
+          data_label: 'USER ENTERED',
+          provenance: { source_name: 'User entered', source_type: 'USER_ENTERED' as any, is_edited: false },
+        }
+      : undefined
+
+    const config: OptimizationConfig = {
+      min_clearance_mm: 15,
+      standard_clearance_mm: 25,
+      generous_clearance_mm: 40,
+      board_thickness_mm: 4,
+      insert_thickness_mm: 25,
+    }
+
+    setSubmitting(true)
+    setError(null)
     try {
-      setSubmitting(true)
-      const res = await createProject(payload)
+      const res = await createProject({
+        name: `${name.trim()} – Optimization`,
+        product,
+        components: prefillComponents ?? [],
+        baseline,
+        optimization_config: config,
+        language: 'en',
+      })
       navigate(`/projects/${res.project_id}`)
     } catch (err: any) {
-      setError(err.message || 'Failed to create project')
+      setError(err.response?.data?.detail ?? err.message ?? 'Failed to create project')
+    } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-2">
-          📦 New Packaging Optimization
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Enter product dimensions and optionally your current packaging to compute material and cost savings.
-        </p>
-      </div>
-
-      {/* Preset Buttons for Instant Testing */}
-      <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs text-slate-400 font-medium">Quick Presets:</span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('fan')}
-            className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
-          >
-            💨 Stand Fan
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('blender')}
-            className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
-          >
-            🥤 Table Blender
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('electronics')}
-            className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
-          >
-            💻 Electronics
-          </button>
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Product info */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2">
+          Product Information
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-3">
+            <Input
+              label="Project / product name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Tornado Stand Fan TSF-16W packaging"
+            />
+          </div>
+          <Input
+            label="Model number"
+            note="optional"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="TSF-16W"
+          />
+          <Input
+            label="Brand"
+            note="optional"
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            placeholder="Tornado"
+          />
+          <Input
+            label="Net weight"
+            note="kg"
+            type="number"
+            min={0}
+            step={0.01}
+            value={weightKg}
+            onChange={(e) => setWeightKg(e.target.value)}
+            placeholder="Not available — enter if known"
+          />
         </div>
+
+        {/* Fragility — required */}
+        <div>
+          <Label required>Fragility class</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {FRAGILITY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setFragility(opt.value)}
+                className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                  fragility === opt.value
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                }`}
+              >
+                <div className="font-semibold">{opt.label}</div>
+                <div className="text-[10px] mt-0.5 text-slate-400">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+          {!fragility && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+              Fragility class is required. It affects the clearance applied in optimization.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Dimensions */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2">
+          Product Dimensions
+          <span className="ms-2 text-[11px] font-normal text-slate-400">
+            (Leave blank if unknown — add component dimensions later)
+          </span>
+        </h3>
+
+        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hasDims}
+            onChange={(e) => setHasDims(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          I know the assembled product dimensions
+        </label>
+
+        {hasDims && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Input
+              label="Length"
+              type="number"
+              min={1}
+              value={dimL}
+              onChange={(e) => setDimL(e.target.value)}
+              placeholder="e.g. 460"
+            />
+            <Input
+              label="Width"
+              type="number"
+              min={1}
+              value={dimW}
+              onChange={(e) => setDimW(e.target.value)}
+              placeholder="e.g. 400"
+            />
+            <Input
+              label="Height"
+              type="number"
+              min={1}
+              value={dimH}
+              onChange={(e) => setDimH(e.target.value)}
+              placeholder="e.g. 1400"
+            />
+            <Select
+              label="Unit"
+              value={dimUnit}
+              onChange={(e) => setDimUnit(e.target.value as any)}
+            >
+              <option value="mm">mm</option>
+              <option value="cm">cm</option>
+              <option value="inch">inch</option>
+            </Select>
+          </div>
+        )}
+
+        {prefillComponents && prefillComponents.length > 0 && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+            {prefillComponents.length} component(s) pre-filled from uploaded file.
+            Confirm units before running optimization.
+          </div>
+        )}
+      </section>
+
+      {/* Baseline packaging */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2">
+          Current Packaging (Baseline)
+          <span className="ms-2 text-[11px] font-normal text-slate-400">
+            Required to compute material and cost savings
+          </span>
+        </h3>
+
+        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeBaseline}
+            onChange={(e) => setIncludeBaseline(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          I know the current carton dimensions
+        </label>
+
+        {includeBaseline && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              label="Outer length (mm)"
+              note="USER ENTERED"
+              type="number"
+              min={1}
+              value={baseL}
+              onChange={(e) => setBaseL(e.target.value)}
+              placeholder="e.g. 575 for TSF-16W"
+            />
+            <Input
+              label="Outer width (mm)"
+              type="number"
+              min={1}
+              value={baseW}
+              onChange={(e) => setBaseW(e.target.value)}
+              placeholder="e.g. 310"
+            />
+            <Input
+              label="Outer height (mm)"
+              type="number"
+              min={1}
+              value={baseH}
+              onChange={(e) => setBaseH(e.target.value)}
+              placeholder="e.g. 490"
+            />
+            <Input
+              label="Board thickness (mm)"
+              note="optional — unknown = leave blank"
+              type="number"
+              min={0}
+              step={0.1}
+              value={baseBoardTh}
+              onChange={(e) => setBaseBoardTh(e.target.value)}
+              placeholder="Not available — enter if measured"
+            />
+            <Input
+              label="Board type"
+              note="optional"
+              value={baseBoardType}
+              onChange={(e) => setBaseBoardType(e.target.value)}
+              placeholder="e.g. Single wall corrugated"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="Carton cost/unit"
+                note="optional"
+                type="number"
+                min={0}
+                step={0.01}
+                value={baseUnitCost}
+                onChange={(e) => setBaseUnitCost(e.target.value)}
+                placeholder="0.00"
+              />
+              <Input
+                label="Currency"
+                value={baseCurrency}
+                onChange={(e) => setBaseCurrency(e.target.value)}
+                placeholder="EGP"
+              />
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Clearance notice */}
+      <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-[11px] text-slate-500 dark:text-slate-400">
+        <strong className="text-slate-600 dark:text-slate-300">Clearances:</strong> The optimizer uses
+        engineering assumptions (min 15 mm / standard 25 mm / generous 40 mm).
+        These are user-editable engineering assumptions, not ISO-specified values.
+        You can adjust them inside the project after creation.
       </div>
 
       {error && (
-        <div className="bg-rose-500/10 border border-rose-500/40 text-rose-300 p-4 rounded-xl text-xs font-medium">
-          ⚠️ {error}
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-3 py-2 text-xs text-red-700 dark:text-red-400">
+          {error}
         </div>
       )}
 
-      {/* Step Tabs */}
-      <div className="flex border-b border-slate-800 text-xs font-semibold">
+      <div className="flex gap-3">
         <button
-          type="button"
-          onClick={() => setStep(1)}
-          className={`py-3 px-5 border-b-2 transition-all ${
-            step === 1
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          type="submit"
+          disabled={submitting}
+          className="px-5 py-2.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
         >
-          1. Product Dimensions
+          {submitting ? 'Creating…' : 'Create Project'}
         </button>
         <button
           type="button"
-          onClick={() => setStep(2)}
-          className={`py-3 px-5 border-b-2 transition-all ${
-            step === 2
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          onClick={() => window.history.back()}
+          className="px-5 py-2.5 rounded-md border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
         >
-          2. Baseline (Optional)
-        </button>
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          className={`py-3 px-5 border-b-2 transition-all ${
-            step === 3
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          3. Clearances & Rules
+          Cancel
         </button>
       </div>
+    </form>
+  )
+}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Step 1: Product Specifications */}
-        {step === 1 && (
-          <div className="bg-slate-900/60 p-6 rounded-xl border border-slate-800 space-y-4 shadow-xl">
-            <h3 className="text-sm font-bold text-slate-200 mb-2">Product Information</h3>
+// ── Page ──────────────────────────────────────────────────────
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Project / Product Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
+export const NewProject: React.FC = () => {
+  const [searchParams] = useSearchParams()
+  const startParam = searchParams.get('start') as StartMode | null
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Category</label>
-                <input
-                  type="text"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
+  const [mode, setMode] = useState<StartMode>(startParam ?? 'select')
+  const [prefillComponents, setPrefillComponents] = useState<ComponentInput[] | undefined>()
+  const [prefillProductName, setPrefillProductName] = useState<string | undefined>()
+  const [prefillWeight, setPrefillWeight] = useState<number | null | undefined>()
 
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-slate-200">
-                  Outer Packed Dimensions
-                </label>
-                <select
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value as any)}
-                  className="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-700"
-                >
-                  <option value="mm">Millimeters (mm)</option>
-                  <option value="cm">Centimeters (cm)</option>
-                  <option value="inch">Inches (in)</option>
-                </select>
-              </div>
+  useEffect(() => {
+    if (startParam && ['manual', 'fetch', 'upload'].includes(startParam)) {
+      setMode(startParam as StartMode)
+    }
+  }, [startParam])
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <span className="text-[11px] text-slate-400 block mb-1">Length</span>
-                  <input
-                    type="number"
-                    value={length}
-                    onChange={(e) => setLength(parseFloat(e.target.value) || 0)}
-                    min={1}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 block mb-1">Width</span>
-                  <input
-                    type="number"
-                    value={width}
-                    onChange={(e) => setWidth(parseFloat(e.target.value) || 0)}
-                    min={1}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 block mb-1">Height</span>
-                  <input
-                    type="number"
-                    value={height}
-                    onChange={(e) => setHeight(parseFloat(e.target.value) || 0)}
-                    min={1}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-              </div>
-            </div>
+  const handleFetched = (result: any) => {
+    // Extract name and weight from fetched fields to pre-fill the form
+    const nameField = result.fields?.find((f: any) => f.field_name === 'product_name')
+    const weightField = result.fields?.find((f: any) => f.field_name === 'net_weight_kg')
+    if (nameField) setPrefillProductName(String(nameField.value))
+    if (weightField) setPrefillWeight(Number(weightField.value))
+    setMode('manual')
+  }
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Packed Weight (kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={weightKg}
-                  onChange={(e) => setWeightKg(parseFloat(e.target.value) || 0)}
-                  min={0.01}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                />
-              </div>
+  const handleUploaded = (result: any) => {
+    if (result.components?.length > 0) {
+      setPrefillComponents(result.components)
+    }
+    const name = result.file_name?.replace(/\.[^.]+$/, '') ?? ''
+    if (name) setPrefillProductName(name)
+    setMode('manual')
+  }
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Fragility Class</label>
-                <select
-                  value={fragility}
-                  onChange={(e) => setFragility(e.target.value as FragilityClass)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value={FragilityClass.LOW}>Low (Sturdy / Rigid items)</option>
-                  <option value={FragilityClass.MEDIUM}>Medium (Standard appliances)</option>
-                  <option value={FragilityClass.HIGH}>High (Glass, sensitive components)</option>
-                  <option value={FragilityClass.VERY_HIGH}>Very High (Precision instruments)</option>
-                </select>
-              </div>
-            </div>
+  const MODES = [
+    { id: 'manual' as StartMode, label: 'Enter manually', desc: 'Blank form — enter all values yourself' },
+    { id: 'fetch' as StartMode, label: 'Fetch from El Araby', desc: 'Auto-fetch known product data by model number' },
+    { id: 'upload' as StartMode, label: 'Upload 3D / CAD', desc: 'Upload STL, OBJ, GLB, STEP, or DXF' },
+  ]
 
-            <div className="pt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all shadow"
-              >
-                Next: Current Packaging →
-              </button>
-            </div>
-          </div>
-        )}
+  return (
+    <div className="max-w-3xl space-y-8 pb-16">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">New Project</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Start from real product data. No values are pre-filled — enter only what you know.
+        </p>
+      </div>
 
-        {/* Step 2: Baseline Packaging */}
-        {step === 2 && (
-          <div className="bg-slate-900/60 p-6 rounded-xl border border-slate-800 space-y-5 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-200">Current Packaging (Baseline)</h3>
-                <p className="text-xs text-slate-400">Used to calculate exact material and cost savings.</p>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={includeBaseline}
-                  onChange={(e) => setIncludeBaseline(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-0"
-                />
-                Include Baseline
-              </label>
-            </div>
+      {/* Mode selector */}
+      {mode === 'select' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMode(m.id)}
+              className="text-left p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition-all"
+            >
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">{m.label}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{m.desc}</p>
+            </button>
+          ))}
+        </div>
+      )}
 
-            {includeBaseline ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Outer Length (mm)</label>
-                    <input
-                      type="number"
-                      value={baseOuterL}
-                      onChange={(e) => setBaseOuterL(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Outer Width (mm)</label>
-                    <input
-                      type="number"
-                      value={baseOuterW}
-                      onChange={(e) => setBaseOuterW(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Outer Height (mm)</label>
-                    <input
-                      type="number"
-                      value={baseOuterH}
-                      onChange={(e) => setBaseOuterH(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                    />
-                  </div>
-                </div>
+      {/* Back link if in a sub-mode */}
+      {mode !== 'select' && (
+        <button
+          type="button"
+          onClick={() => setMode('select')}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to start options
+        </button>
+      )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Board Thickness (mm)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={baseBoardTh}
-                      onChange={(e) => setBaseBoardTh(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Board Specification</label>
-                    <input
-                      type="text"
-                      value={baseBoardType}
-                      onChange={(e) => setBaseBoardType(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white"
-                    />
-                  </div>
-                </div>
+      {/* Flows */}
+      {mode === 'fetch' && (
+        <FetchFlow onFetched={handleFetched} onSkip={() => setMode('manual')} />
+      )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Unit Cost</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={baseUnitCost}
-                      onChange={(e) => setBaseUnitCost(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Currency</label>
-                    <input
-                      type="text"
-                      value={baseCurrency}
-                      onChange={(e) => setBaseCurrency(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white uppercase"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 text-center text-xs text-slate-500 bg-slate-950/40 rounded-xl">
-                Baseline skipped. Packaging will be optimized from product dimensions, and savings
-                will show as <span className="font-semibold text-slate-400">NOT CONFIGURED</span>.
-              </div>
-            )}
+      {mode === 'upload' && (
+        <UploadFlow onUploaded={handleUploaded} onSkip={() => setMode('manual')} />
+      )}
 
-            <div className="pt-4 flex justify-between">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                ← Back
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow"
-              >
-                Next: Clearances →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Clearances & Engine Config */}
-        {step === 3 && (
-          <div className="bg-slate-900/60 p-6 rounded-xl border border-slate-800 space-y-5 shadow-xl">
-            <h3 className="text-sm font-bold text-slate-200">Clearances & Packaging Rules</h3>
-            <p className="text-xs text-slate-400">
-              Deterministic rules applied to generate candidate packaging alternatives.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-200 block">Alt 1: Tight Fit</span>
-                <span className="text-[11px] text-slate-500 block">Material-optimized</span>
-                <label className="text-xs text-slate-400 block pt-1">Clearance (mm)</label>
-                <input
-                  type="number"
-                  value={minClearance}
-                  onChange={(e) => setMinClearance(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                />
-              </div>
-
-              <div className="bg-blue-950/30 p-4 rounded-xl border border-blue-500/30 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-300">Alt 2: Standard</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                    RECOMMENDED
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-400 block">Balanced drop clearance</span>
-                <label className="text-xs text-slate-400 block pt-1">Clearance (mm)</label>
-                <input
-                  type="number"
-                  value={stdClearance}
-                  onChange={(e) => setStdClearance(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                />
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-200 block">Alt 3: Protective</span>
-                <span className="text-[11px] text-slate-500 block">Perimeter foam cushioning</span>
-                <label className="text-xs text-slate-400 block pt-1">Clearance + Cushion (mm)</label>
-                <input
-                  type="number"
-                  value={generousClearance}
-                  onChange={(e) => setGenerousClearance(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs text-slate-300 mb-1">Assumed Board Thickness (mm)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={boardThickness}
-                  onChange={(e) => setBoardThickness(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-300 mb-1">Cushion Foam Thickness (mm)</label>
-                <input
-                  type="number"
-                  value={insertThickness}
-                  onChange={(e) => setInsertThickness(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-between items-center">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                ← Back
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
-              >
-                {submitting ? (
-                  <span>Generating 3D Models & Standards...</span>
-                ) : (
-                  <>
-                    <span>🚀</span>
-                    <span>Generate & Optimize Packaging</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-      </form>
+      {mode === 'manual' && (
+        <MainForm
+          prefillComponents={prefillComponents}
+          prefillProductName={prefillProductName}
+          prefillWeight={prefillWeight}
+        />
+      )}
     </div>
   )
 }

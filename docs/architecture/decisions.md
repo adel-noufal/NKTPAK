@@ -23,3 +23,15 @@
 - **Context:** Packaging engineers require reproducible, explainable calculations for carton dimensions, board surface area, volume utilization, and material savings.
 - **Decision:** Generate 3 deterministic alternatives (Tight Fit, Standard Balanced, and Protective Cushion) with visible clearances, explicit units (mm, kg, cm²), and open formulas.
 - **Consequence:** Full transparency; eliminates hallucinations and guarantees predictable outputs.
+
+## ADR-005: Draft Projects for Incomplete Measurements
+- **Status:** Accepted
+- **Context:** Real industrial products (such as the Tornado Stand Fan TSF-16W) ship disassembled, meaning the assembled product envelope is for reference only and packed component dimensions must be measured on site.
+- **Decision:** When reference examples or incomplete products are loaded, the system creates a project in `draft` status with `optimization_status = "AWAITING_COMPONENT_DIMENSIONS"`. The optimization pipeline is deferred until the engineer enters measured component dimensions.
+- **Consequence:** Eliminates fabricated/fake component dimensions; keeps the app honest and engineering-accurate.
+
+## ADR-006: Optional Baseline Board Thickness
+- **Status:** Accepted
+- **Context:** Manufacturer datasheets publish external carton dimensions (e.g. 575 × 310 × 490 mm for TSF-16W), but corrugated board wall thickness (e.g. 3 mm, 4.5 mm) is not published in public retail or product sheets.
+- **Decision:** Make `board_thickness_mm` optional in `BaselinePackaging`. When missing, internal cavity volume and board material volume vs baseline are reported as "Needs board thickness" rather than assuming an unverified value.
+- **Consequence:** Preserves data provenance and transparently informs the engineer which physical measurement is still required.

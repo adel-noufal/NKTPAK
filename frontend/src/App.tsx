@@ -6,7 +6,7 @@ import { NewProject } from './pages/NewProject'
 import { ProjectDetail } from './pages/ProjectDetail'
 import { ProjectsList } from './pages/ProjectsList'
 import { Standards } from './pages/Standards'
-import { Settings } from './pages/Settings'
+// Settings page removed in v6 — language and theme moved to header
 
 export const App: React.FC = () => {
   return (
@@ -17,7 +17,6 @@ export const App: React.FC = () => {
         <Route path="projects/:id" element={<ProjectDetail />} />
         <Route path="projects" element={<ProjectsList />} />
         <Route path="standards" element={<Standards />} />
-        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   )

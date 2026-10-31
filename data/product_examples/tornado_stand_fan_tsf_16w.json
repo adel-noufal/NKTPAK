@@ -1,0 +1,92 @@
+{
+  "example_id": "tsf-16w",
+  "example_name": "Tornado Stand Fan 16\" (TSF-16W)",
+  "model": "TSF-16W",
+  "brand": "Tornado",
+  "category": "Home Appliances",
+  "description": "Tornado stand fan, 16 inch, 4 blades, black, model TSF-16W. Shipped disassembled as separate parts.",
+  "data_label": "EL_ARABY_DATASHEET",
+  "provenance": {
+    "source_name": "El Araby Germany GmbH datasheet",
+    "source_url": "https://d.otto.de/files/63751d29-94cc-4425-8250-d7468ff8c95c.pdf",
+    "retrieval_date": "2026-10-31",
+    "source_type": "EL_ARABY_DATASHEET",
+    "is_edited": false,
+    "evidence_snippet": "TSF-16W | EAN 6221127018394 | 60 W | 220 V AC 50 Hz | Net weight: 7.3 kg | Gross weight: 9.1 kg | Carton: 575 x 310 x 490 mm | 760 units per 40' HQ"
+  },
+  "product": {
+    "name": "Tornado Stand Fan 16\" (TSF-16W)",
+    "model": "TSF-16W",
+    "brand": "Tornado",
+    "category": "Home Appliances",
+    "assembled_envelope": {
+      "length_mm": 460,
+      "width_mm": 400,
+      "height_mm": 1400,
+      "unit": "mm",
+      "provenance": {
+        "source_name": "El Araby Germany GmbH datasheet",
+        "source_url": "https://d.otto.de/files/63751d29-94cc-4425-8250-d7468ff8c95c.pdf",
+        "retrieval_date": "2026-10-31",
+        "source_type": "EL_ARABY_DATASHEET",
+        "is_edited": false
+      }
+    },
+    "net_weight_kg": 7.3,
+    "gross_weight_kg": 9.1,
+    "packaging_mass_kg": 1.8,
+    "packaging_mass_formula": "9.1 kg (gross) - 7.3 kg (net) = 1.8 kg packaging mass",
+    "technical_specs": {
+      "ean": "6221127018394",
+      "power_watts": "60 +/- 3 W",
+      "voltage": "220 V AC 50 Hz",
+      "electrical_class": "Class II",
+      "ip_rating": "IPX0",
+      "speeds": 3,
+      "blades": "4 plastic blades",
+      "certification": "CE certificate",
+      "container_loading_40hq": "760 units per 40-foot HQ container"
+    },
+    "datasheet_notes": [
+      "Datasheet writes blade diameter as '16 inch (40 mm)', which appears to be a typo for 40 cm (400 mm).",
+      "Datasheet lists 'Volume 257600 cm3', which equals the assembled product envelope (46 x 40 x 140 cm), NOT the carton volume."
+    ],
+    "notes": "Fan ships disassembled into parts. Components must be entered with measured dimensions.",
+    "fragility_class": null
+  },
+  "components": [],
+  "component_suggestions": [
+    "Base",
+    "Adjustable pole",
+    "Motor & head assembly",
+    "Front & rear grille",
+    "Blades (4-blade unit)"
+  ],
+  "baseline": {
+    "carton_outer_length_mm": 575,
+    "carton_outer_width_mm": 310,
+    "carton_outer_height_mm": 490,
+    "carton_external_volume_cm3": 87342.5,
+    "carton_volume_formula": "57.5 cm × 31.0 cm × 49.0 cm = 87,342.5 cm³",
+    "board_thickness_mm": null,
+    "board_type": null,
+    "inserts": [],
+    "carton_cost_per_unit": null,
+    "currency": "EGP",
+    "provenance": {
+      "source_name": "El Araby Germany GmbH datasheet",
+      "source_url": "https://d.otto.de/files/63751d29-94cc-4425-8250-d7468ff8c95c.pdf",
+      "retrieval_date": "2026-10-31",
+      "source_type": "EL_ARABY_DATASHEET",
+      "is_edited": false
+    }
+  },
+  "planned": null,
+  "optimization_config": {
+    "min_clearance_mm": 15.0,
+    "standard_clearance_mm": 25.0,
+    "generous_clearance_mm": 40.0,
+    "board_thickness_mm": 4.0,
+    "insert_thickness_mm": 25.0
+  }
+}

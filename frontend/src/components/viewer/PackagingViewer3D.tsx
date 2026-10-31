@@ -2,12 +2,12 @@ import React, { useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, Center, Text } from '@react-three/drei'
 import * as THREE from 'three'
-import { useProjectStore } from '../../store/projectStore'
+import { useProjectStore, type ViewMode } from '../../store/projectStore'
 import type { PackagingAlternative } from '../../types'
 
 interface PackagingViewer3DProps {
   alternative?: PackagingAlternative | null
-  productDims?: { length: number; width: number; height: number }
+  productDims?: { length: number; width: number; height: number } | null
 }
 
 const BoxMesh: React.FC<{
@@ -16,7 +16,8 @@ const BoxMesh: React.FC<{
   opacity?: number
   wireframe?: boolean
   label?: string
-}> = ({ dimensions, color, opacity = 1, wireframe = false, label }) => {
+  edgeColor?: string
+}> = ({ dimensions, color, opacity = 1, wireframe = false, label, edgeColor = '#ffffff' }) => {
   return (
     <group>
       <mesh>
@@ -25,21 +26,20 @@ const BoxMesh: React.FC<{
           color={color}
           transparent={opacity < 1}
           opacity={opacity}
-          roughness={0.4}
+          roughness={0.5}
           metalness={0.1}
           wireframe={wireframe}
         />
       </mesh>
-      {/* Subtle border outline for crisp engineering appearance */}
       <lineSegments>
         <edgesGeometry args={[new THREE.BoxGeometry(...dimensions)]} />
-        <lineBasicMaterial color="#ffffff" opacity={0.3} transparent />
+        <lineBasicMaterial color={edgeColor} opacity={0.35} transparent />
       </lineSegments>
       {label && (
         <Text
-          position={[0, dimensions[1] / 2 + 0.15, 0]}
-          fontSize={0.12}
-          color="#cbd5e1"
+          position={[0, dimensions[1] / 2 + 0.08, 0]}
+          fontSize={0.08}
+          color="#94a3b8"
           anchorX="center"
           anchorY="middle"
         >
@@ -52,27 +52,28 @@ const BoxMesh: React.FC<{
 
 export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   alternative,
-  productDims = { length: 300, width: 200, height: 150 },
+  productDims,
 }) => {
   const { selectedView, setSelectedView } = useProjectStore()
   const [wireframeMode, setWireframeMode] = useState(false)
   const [cameraView, setCameraView] = useState<'iso' | 'front' | 'top'>('iso')
   const controlsRef = useRef<any>(null)
 
-  // Scale down millimeters to meters for Three.js scene (1000mm = 1.0 unit)
+  // Scale down millimeters to meters for Three.js (1000mm = 1 unit)
   const scale = 0.001
 
-  // Outer carton dimensions
-  const outerL = (alternative?.outer_length_mm || productDims.length + 50) * scale
-  const outerW = (alternative?.outer_width_mm || productDims.width + 50) * scale
-  const outerH = (alternative?.outer_height_mm || productDims.height + 50) * scale
+  const pLength = productDims?.length || 300
+  const pWidth = productDims?.width || 200
+  const pHeight = productDims?.height || 150
 
-  // Product dimensions
-  const prodL = productDims.length * scale
-  const prodW = productDims.width * scale
-  const prodH = productDims.height * scale
+  const outerL = (alternative?.outer_length_mm || pLength + 50) * scale
+  const outerW = (alternative?.outer_width_mm || pWidth + 50) * scale
+  const outerH = (alternative?.outer_height_mm || pHeight + 50) * scale
 
-  // Inserts / Cushion dimensions (if any)
+  const prodL = pLength * scale
+  const prodW = pWidth * scale
+  const prodH = pHeight * scale
+
   const insertTh = (alternative?.insert_thickness_mm || 0) * scale
   const hasInserts = insertTh > 0
 
@@ -92,112 +93,124 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   }
 
   return (
-    <div className="relative w-full h-[480px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col">
-      {/* Top Left Controls Toolbar */}
-      <div className="absolute top-4 start-4 z-10 flex flex-wrap items-center gap-2 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/60 shadow-lg">
+    <div className="relative w-full h-[500px] bg-slate-900 dark:bg-slate-950 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+      {/* Top Left View Mode Toolbar */}
+      <div className="absolute top-3 start-3 z-10 flex flex-wrap items-center gap-1.5 bg-slate-800/90 dark:bg-slate-900/90 backdrop-blur-md p-1 rounded-lg border border-slate-700/60 shadow">
         <button
           type="button"
-          onClick={() => setSelectedView('exterior')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            selectedView === 'exterior'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          onClick={() => setSelectedView('box')}
+          className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            selectedView === 'box'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
           }`}
         >
-          📦 Exterior Box
+          Box (Outside)
         </button>
         <button
           type="button"
-          onClick={() => setSelectedView('interior')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            selectedView === 'interior'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          onClick={() => setSelectedView('inside')}
+          className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            selectedView === 'inside'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
           }`}
         >
-          🔍 Interior Fit
+          Inside the Box
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedView('product')}
+          className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            selectedView === 'product'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
+          }`}
+        >
+          Product Alone
         </button>
 
-        <span className="w-px h-4 bg-slate-700 mx-1 hidden sm:inline-block" />
+        <span className="w-px h-4 bg-slate-700 mx-0.5" />
 
         <button
           type="button"
           onClick={() => setWireframeMode(!wireframeMode)}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
             wireframeMode
-              ? 'bg-indigo-600 text-white'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              ? 'bg-slate-700 text-white'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
           }`}
           title="Toggle wireframe mode"
         >
-          🕸️ {wireframeMode ? 'Solid' : 'Wireframe'}
+          {wireframeMode ? 'Solid' : 'Wireframe'}
         </button>
       </div>
 
-      {/* Top Right Camera & Dimensions Legend */}
-      <div className="absolute top-4 end-4 z-10 flex flex-col items-end gap-2">
-        {/* Camera Preset Quick Buttons */}
-        <div className="bg-slate-900/90 backdrop-blur-md px-2 py-1 rounded-lg border border-slate-700/60 flex items-center gap-1 shadow-lg text-[11px]">
+      {/* Top Right Camera & Live Dimensions */}
+      <div className="absolute top-3 end-3 z-10 flex flex-col items-end gap-2 pointer-events-none">
+        {/* Camera Preset Buttons */}
+        <div className="pointer-events-auto bg-slate-800/90 dark:bg-slate-900/90 backdrop-blur-md px-2 py-1 rounded-lg border border-slate-700/60 flex items-center gap-1 shadow text-[11px]">
           <span className="text-slate-400 px-1 font-medium">Angle:</span>
-          <button
-            type="button"
-            onClick={() => handleSetCameraView('iso')}
-            className={`px-2 py-0.5 rounded transition-colors ${cameraView === 'iso' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'}`}
-          >
-            3D
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSetCameraView('front')}
-            className={`px-2 py-0.5 rounded transition-colors ${cameraView === 'front' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'}`}
-          >
-            Front
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSetCameraView('top')}
-            className={`px-2 py-0.5 rounded transition-colors ${cameraView === 'top' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'}`}
-          >
-            Top
-          </button>
+          {(['iso', 'front', 'top'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => handleSetCameraView(mode)}
+              className={`px-2 py-0.5 rounded capitalize transition-colors ${
+                cameraView === mode
+                  ? 'bg-blue-600 text-white font-medium'
+                  : 'text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {mode === 'iso' ? '3D' : mode}
+            </button>
+          ))}
         </div>
 
-        {/* Dimensions Card */}
-        <div className="bg-slate-900/90 backdrop-blur-md px-3.5 py-2.5 rounded-xl border border-slate-700/60 text-xs text-slate-300 shadow-xl flex flex-col gap-1.5 min-w-[210px]">
-          <div className="font-semibold text-slate-100 flex items-center justify-between border-b border-slate-800 pb-1">
-            <span className="text-xs">Live Dimensions (mm)</span>
-            <span className="text-[10px] text-blue-400 font-mono">ISO 2206</span>
+        {/* Dimensions Card (No fake ISO badge) */}
+        <div className="pointer-events-auto bg-slate-800/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-2.5 rounded-lg border border-slate-700/60 text-xs text-slate-300 shadow max-w-[240px]">
+          <div className="font-semibold text-slate-100 flex items-center justify-between border-b border-slate-700 pb-1 mb-1.5">
+            <span className="text-[11px]">Dimensions (mm)</span>
+            <span className="text-[10px] text-slate-400 font-normal">Deterministic</span>
           </div>
-          <div className="font-mono text-[11px] text-slate-300 space-y-0.5">
-            <div className="flex justify-between">
-              <span className="text-amber-400 font-semibold">Carton:</span>
-              <span className="text-white font-bold">
+          <div className="font-mono text-[11px] space-y-1">
+            <div className="flex justify-between items-center gap-3">
+              <span className="text-amber-400">Carton:</span>
+              <span className="text-slate-100 font-semibold">
                 {alternative?.outer_length_mm || Math.round(outerL * 1000)} × {alternative?.outer_width_mm || Math.round(outerW * 1000)} × {alternative?.outer_height_mm || Math.round(outerH * 1000)}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-blue-400 font-semibold">Product:</span>
-              <span className="text-slate-200">
-                {productDims.length} × {productDims.width} × {productDims.height}
-              </span>
-            </div>
+            {productDims ? (
+              <div className="flex justify-between items-center gap-3">
+                <span className="text-blue-400">Product:</span>
+                <span className="text-slate-300">
+                  {pLength} × {pWidth} × {pHeight}
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center gap-3 text-slate-400 text-[10px]">
+                <span>Product:</span>
+                <span>Not entered</span>
+              </div>
+            )}
             {hasInserts && (
-              <div className="flex justify-between text-emerald-400">
+              <div className="flex justify-between items-center gap-3 text-emerald-400 text-[10px]">
                 <span>Cushion:</span>
-                <span>{alternative?.insert_thickness_mm} mm padding</span>
+                <span>{alternative?.insert_thickness_mm} mm per side</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3 pt-1.5 border-t border-slate-800 text-[10px]">
+          {/* Color legend */}
+          <div className="flex items-center gap-3 pt-2 mt-1.5 border-t border-slate-700 text-[10px]">
             <span className="flex items-center gap-1 text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block shadow-sm" /> Carton
+              <span className="w-2 h-2 rounded-sm bg-amber-500 inline-block" /> Carton
             </span>
             <span className="flex items-center gap-1 text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block shadow-sm" /> Product
+              <span className="w-2 h-2 rounded-sm bg-blue-500 inline-block" /> Product
             </span>
             {hasInserts && (
               <span className="flex items-center gap-1 text-slate-300">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block shadow-sm" /> Cushion
+                <span className="w-2 h-2 rounded-sm bg-emerald-500 inline-block" /> Cushion
               </span>
             )}
           </div>
@@ -210,51 +223,59 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       >
         <ambientLight intensity={0.8} />
-        <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
+        <directionalLight position={[5, 8, 5]} intensity={1.2} />
         <directionalLight position={[-5, -4, -5]} intensity={0.4} />
 
         <Center top>
-          {selectedView === 'exterior' ? (
-            /* Exterior Mode: Cardboard Outer Carton */
+          {selectedView === 'box' && (
             <BoxMesh
               dimensions={[outerL, outerH, outerW]}
-              color="#d97706" // Corrugated cardboard amber
-              opacity={wireframeMode ? 0.3 : 0.94}
+              color="#d97706"
+              opacity={wireframeMode ? 0.35 : 0.95}
               wireframe={wireframeMode}
               label={`${Math.round(outerL * 1000)} × ${Math.round(outerW * 1000)} × ${Math.round(outerH * 1000)} mm`}
             />
-          ) : (
-            /* Interior Mode: Translucent Box with Product and Cushions inside */
+          )}
+
+          {selectedView === 'inside' && (
             <group>
-              {/* Ghost outer carton */}
               <BoxMesh
                 dimensions={[outerL, outerH, outerW]}
                 color="#b45309"
-                opacity={0.15}
+                opacity={0.16}
                 wireframe={wireframeMode}
               />
-              {/* Product inside */}
-              <BoxMesh
-                dimensions={[prodL, prodH, prodW]}
-                color="#3b82f6" // Product blue
-                opacity={wireframeMode ? 0.5 : 0.95}
-                wireframe={wireframeMode}
-                label="Product Core"
-              />
-              {/* Optional Cushion Layer around product */}
-              {hasInserts && (
+              {productDims && (
+                <BoxMesh
+                  dimensions={[prodL, prodH, prodW]}
+                  color="#3b82f6"
+                  opacity={wireframeMode ? 0.5 : 0.92}
+                  wireframe={wireframeMode}
+                  label="Product Envelope"
+                />
+              )}
+              {hasInserts && productDims && (
                 <BoxMesh
                   dimensions={[prodL + insertTh * 2, prodH + insertTh * 2, prodW + insertTh * 2]}
-                  color="#10b981" // Cushion emerald
+                  color="#10b981"
                   opacity={0.25}
                   wireframe={wireframeMode}
                 />
               )}
             </group>
           )}
+
+          {selectedView === 'product' && (
+            <BoxMesh
+              dimensions={[prodL, prodH, prodW]}
+              color="#3b82f6"
+              opacity={wireframeMode ? 0.5 : 0.92}
+              wireframe={wireframeMode}
+              label={productDims ? `${pLength} × ${pWidth} × ${pHeight} mm` : 'Default envelope'}
+            />
+          )}
         </Center>
 
-        {/* Floor Grid for perspective */}
         <Grid
           position={[0, -0.01, 0]}
           args={[4, 4]}
@@ -278,10 +299,9 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
         />
       </Canvas>
 
-      {/* Bottom Hint Bar */}
-      <div className="absolute bottom-2.5 start-4 z-10 text-[11px] text-slate-400 bg-slate-900/70 backdrop-blur-sm px-3 py-1 rounded-lg border border-slate-800 pointer-events-none flex items-center gap-2">
-        <span>💡</span>
-        <span>Left-drag to rotate • Scroll to zoom • Right-drag to pan</span>
+      {/* Bottom Hint */}
+      <div className="absolute bottom-2.5 start-3 z-10 text-[10px] text-slate-400 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1 rounded border border-slate-800 pointer-events-none">
+        Left-drag rotate · Scroll zoom · Right-drag pan
       </div>
     </div>
   )

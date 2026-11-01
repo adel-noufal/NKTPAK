@@ -3,8 +3,8 @@
 ## Project Purpose
 
 NxtPak AI is an intelligent packaging optimization tool for the NXTPAK Hackathon (Egypt), El Araby Group challenge.
-It recommends right-sized packaging, shows interactive 3D previews (Exterior and Interior), calculates material and cost
-savings versus a user-entered baseline, and evaluates packaging designs against a built-in ISO standards registry —
+It recommends right-sized packaging, shows interactive 3D previews (Exterior, Interior, product, exploded, and packed parts), calculates material and cost
+savings versus a user-entered baseline, and presents packaging guidance alongside the database-backed ISO and ISTA catalogs —
 without lowering the required protection level.
 
 **Primary users:** Packaging and industrial engineers  
@@ -25,10 +25,12 @@ without lowering the required protection level.
 6. **No paid API secrets committed.** Use environment variables only; never commit `.env`.
 7. **No fake or invented data.** Never assign invented numeric values to any field. If unknown, leave it null and label it "Not available — enter it". Presets must use real El Araby data only.
 8. **Data provenance on every field.** Every record carries source_name, source_url, retrieval_date, source_type, and is_edited flag. Clearances are labeled "ENGINEERING_ASSUMPTION" and never given a false ISO badge.
+9. **One 3D coordinate convention.** Scene units are millimetres, Y is up, X is length, Z is width. Position objects and report dimensions from measured `THREE.Box3` bounds.
+10. **Missing dimensions stay missing.** Never replace unknown or invalid product/carton dimensions with zero to build geometry or report clearance.
 
 ---
 
-## ISO Standards Registry Rules (Section 4 of Master Prompt)
+## ISO and ISTA Standards Registry Rules
 
 1. **No standard text reproduction.** Store only: identifier, title, edition, scope summary (own words), relevance,
    check type, source URL, retrieval date, verification status.
@@ -43,8 +45,9 @@ without lowering the required protection level.
 6. **No compliance certificates generated.** Software PASS ≠ ISO certification.
 7. **No El Araby-specific checks.** Company specs are not public. Registry allows JSON import of `OFFICIAL_COMPANY`
    or `USER_ENTERED` requirements; until then, no company-specific checks exist.
-8. **Every report states:** "Evaluated against: NxtPak ISO registry v1 (see source list). No company-specific
-   requirements loaded."
+8. **Every project/report statement is database-derived** and identifies the ISO and ISTA registries, entry counts, last verification date, and that no company-specific requirements are loaded.
+9. **ISTA summaries are original guidance.** Never invent procedure test levels. When shipment mode is unknown, request it rather than recommending a guessed procedure.
+10. **Verify procedure metadata from primary sources.** Keep source URL and verification date with each catalog record.
 
 ---
 
@@ -96,12 +99,16 @@ pnpm dev
 ```powershell
 cd d:\Adel\Projects\NxtPak\frontend
 pnpm test
+pnpm lint
+pnpm build
+pnpm test:e2e
 ```
 
 ### Quick start (both services)
-Open two terminals and run backend + frontend simultaneously.  
-Backend: `http://localhost:8000` | API docs: `http://localhost:8000/docs`  
-Frontend: `http://localhost:5173`
+Install backend dependencies once, then from `frontend/` run `pnpm install` and `pnpm dev:all`. The script starts the backend and frontend, polls `GET /api/health`, and reports startup errors. `VITE_API_URL` configures the frontend API base (default `http://127.0.0.1:8000`).
+
+Backend: `http://127.0.0.1:8000` | API docs: `http://127.0.0.1:8000/docs` | Health: `http://127.0.0.1:8000/api/health`
+Frontend: `http://127.0.0.1:5173`
 
 ---
 
@@ -186,9 +193,18 @@ Frontend: `http://localhost:5173`
 
 ---
 
-## Current Milestone: Production Release v2 (All 32 Backend Tests & Frontend Vitest Passed)
+## Current Milestone: Geometry, Data Recovery, Exports, and ISO/ISTA Guidance
 
-- Database ships completely empty (0 rows). Test database completely isolated via `test_nxtpak.db` conftest fixture.
+- Canonical Three.js scene coordinates and Box3-based object placement, dimensions, and clearance measurements across Box, Inside, Product Alone, Exploded, and Packed Parts views.
+- Product model selection uses saved product type or CAD geometry; unknown product types use a labelled generic shape.
+- Partial product updates preserve existing fields. Legacy migration restores dimensions only from explicit saved project text; missing dimensions block geometry and clearance claims.
+- Database-backed ISO and ISTA catalog, project applicability/recommendation reasons, source and verification metadata, and lab-only suggested procedures without invented test levels.
+- PDF, standalone HTML, JSON, and DXF exports validate required dimensions and return actionable error responses.
+- Backend tests include legacy migration and exports; frontend includes scene unit tests and Playwright geometry/evidence tests. Run the commands above rather than relying on a stale test count.
+
+## Previous Release v2 Capabilities
+
+- No fabricated sample projects are seeded. The maintained ISO/ISTA catalog metadata is loaded into the standards table; tests use isolated `test_nxtpak.db`.
 - Free-text "Describe your project" AI prompt box on NewProject screen with automated field extraction, model auto-enrichment button, and required field validation.
 - Live LLM model listing (`/api/v1/llm-models`) dynamically fetching text models from Google Gemini (with `x-goog-api-key` header, not URL query params), Anthropic, and OpenAI.
 - Real connection test endpoint (`/api/v1/test-llm-connection`) with latency measurement and human-readable plain language error translation.

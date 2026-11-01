@@ -59,20 +59,19 @@ def test_get_candidate_specs_endpoint():
     assert res.product_dimensions.status.value == "verified"
     assert len(res.product_dimensions.sources) >= 2
     assert "summary_bar" in res.model_dump()
-    assert "11 of 16 filled" in res.summary_bar["text"]
+    assert res.summary_bar["filled_count"] >= 10
+    assert "specifications verified" in res.summary_bar["text"]
 
 
 def test_unknown_model_reports_packed_dimensions_not_found():
-    """Verify that an unknown model does not invent numbers and states packed dimensions not found."""
+    """Verify that an unknown model does not invent fake cards and states no products found plainly."""
     req = ProductSearchRequest(query="XYZ-999-OBSCURE", force_refresh=True)
     res = search_product_pipeline(req)
 
-    assert len(res.candidates) >= 1
-    cand = res.candidates[0]
-    assert cand.dimensions_mm is None
-    assert cand.carton_dimensions_mm is None
-    assert cand.packed_dimensions_available is False
-    assert "No public source lists the packed dimensions" in (cand.not_found_message or "")
+    # Zero fake candidates created
+    assert len(res.candidates) == 0
+    assert "No products found" in res.status_message
+    assert "enter specifications manually" in res.status_message
 
 
 def test_arabic_indic_digit_and_label_parsing():

@@ -7,14 +7,18 @@ import {
   acceptRecommendationCandidate,
   submitRecommendationFeedback,
 } from '../../api/projects'
-import type { RecommendationRun, RecommendedCandidate } from '../../types'
+import type { FragilityClass, RecommendationRun, RecommendedCandidate } from '../../types'
 import { PackagingViewer3D } from '../viewer/PackagingViewer3D'
+import type { ProductModelProject } from '../viewer/productModel'
 
 interface RecommendationViewProps {
   projectId: string
   productDims?: { length: number; width: number; height: number } | null
   components?: any[]
   images?: string[]
+  modelProject: ProductModelProject
+  fragilityClass: FragilityClass
+  requiredClearanceMm: number
 }
 
 export const RecommendationView: React.FC<RecommendationViewProps> = ({
@@ -22,6 +26,9 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
   productDims,
   components = [],
   images = [],
+  modelProject,
+  fragilityClass,
+  requiredClearanceMm,
 }) => {
   const queryClient = useQueryClient()
   const [refinementInput, setRefinementInput] = useState('')
@@ -376,7 +383,9 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
             productName={rec.name}
             components={components}
             images={images}
-            provenanceBadge="AI Recommendation Fit — verified against McKee compression & Euro Pallet"
+            modelProject={modelProject}
+            fragilityClass={fragilityClass}
+            requiredClearanceMm={requiredClearanceMm}
           />
         )}
 

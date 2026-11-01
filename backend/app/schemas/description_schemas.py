@@ -29,6 +29,7 @@ class ProjectDraft(BaseModel):
     name: Optional[str] = None
     brand: Optional[str] = None
     model_number: Optional[str] = None
+    product_type: Optional[str] = None
     sku: Optional[str] = None
     product_length_mm: Optional[float] = None
     product_width_mm: Optional[float] = None

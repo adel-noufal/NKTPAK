@@ -2,10 +2,11 @@ import React, { useMemo } from 'react'
 import * as THREE from 'three'
 import { Html } from '@react-three/drei'
 import type { ComponentSpec } from '../../types'
+import type { ProductModelResolution } from './productModel'
+import { createBoxGeometryLWH } from './sceneGeometry'
 
 interface ParametricProductProps {
-  category?: string | null
-  productName?: string
+  resolvedModel: ProductModelResolution['model']
   dimensions: { length: number; width: number; height: number }
   viewMode: 'assembled' | 'packed_parts' | 'exploded'
   explodedFactor?: number // 0 (assembled) to 1 (fully exploded)
@@ -359,11 +360,6 @@ export const GenericApplianceModel: React.FC<{
         <boxGeometry args={[l, h, w]} />
         <meshStandardMaterial color="#e4e4e7" roughness={0.35} metalness={0.2} wireframe={wireframe} />
       </mesh>
-      {/* Front Faceplate Accent */}
-      <mesh position={[0, 0, w / 2 + 0.002]}>
-        <planeGeometry args={[l * 0.88, h * 0.85]} />
-        <meshStandardMaterial color="#27272a" roughness={0.4} metalness={0.3} wireframe={wireframe} />
-      </mesh>
     </group>
   )
 }
@@ -407,7 +403,7 @@ export const PackedPartsModel: React.FC<{
             }}
           >
             <mesh castShadow>
-              <boxGeometry args={[cL * 0.7, cH, cW * 0.7]} />
+              <primitive object={createBoxGeometryLWH({ length: cL * 0.7, width: cW * 0.7, height: cH })} attach="geometry" />
               <meshStandardMaterial
                 color={partColors[idx % partColors.length]}
                 roughness={0.4}
@@ -418,7 +414,7 @@ export const PackedPartsModel: React.FC<{
               />
             </mesh>
             {/* HTML Tooltip on hover/select */}
-            <Html position={[0, cH / 2 + 0.03, 0]} center style={{ pointerEvents: 'none' }}>
+            <Html position={[0, cH / 2 + 0.03, 0]} center style={{ pointerEvents: 'none', display: 'none' }}>
               <div
                 style={{
                   background: isSelected ? 'rgba(30, 58, 138, 0.95)' : 'rgba(15, 23, 42, 0.85)',
@@ -447,8 +443,7 @@ export const PackedPartsModel: React.FC<{
  * scales it to real millimeter dimensions, and handles Assembled, Packed Parts, and Exploded modes.
  */
 export const ParametricProduct3D: React.FC<ParametricProductProps> = ({
-  category,
-  productName,
+  resolvedModel,
   dimensions,
   viewMode,
   explodedFactor = 0,
@@ -457,8 +452,6 @@ export const ParametricProduct3D: React.FC<ParametricProductProps> = ({
   onSelectComponent,
   selectedComponentName,
 }) => {
-  const norm = `${category || ''} ${productName || ''}`.toLowerCase()
-
   if (viewMode === 'packed_parts') {
     return (
       <PackedPartsModel
@@ -470,7 +463,7 @@ export const ParametricProduct3D: React.FC<ParametricProductProps> = ({
     )
   }
 
-  if (norm.includes('fan') || norm.includes('tsf') || norm.includes('efs')) {
+  if (resolvedModel === 'stand_fan') {
     return (
       <StandFanModel
         dimensions={dimensions}
@@ -480,29 +473,11 @@ export const ParametricProduct3D: React.FC<ParametricProductProps> = ({
     )
   }
 
-  if (norm.includes('blender') || norm.includes('bl500') || norm.includes('mx')) {
+  if (resolvedModel === 'blender') {
     return (
       <TableBlenderModel
         dimensions={dimensions}
         explodedFactor={explodedFactor}
-        wireframe={wireframe}
-      />
-    )
-  }
-
-  if (norm.includes('wash') || norm.includes('vh')) {
-    return (
-      <WashingMachineModel
-        dimensions={dimensions}
-        wireframe={wireframe}
-      />
-    )
-  }
-
-  if (norm.includes('tv') || norm.includes('screen') || norm.includes('led')) {
-    return (
-      <TVModel
-        dimensions={dimensions}
         wireframe={wireframe}
       />
     )

@@ -124,6 +124,12 @@ class ProductInput(BaseModel):
     model: str = Field(..., min_length=1, max_length=100, description="Model Number (e.g. TSF-16W)")
     sku: Optional[str] = Field(None, max_length=100, description="Stock Keeping Unit / Barcode")
     category: Optional[str] = Field(None, max_length=100)
+    product_type: Literal[
+        "blender", "stand_fan", "ceiling_fan", "washing_machine", "refrigerator",
+        "air_conditioner", "tv", "kettle", "microwave", "water_heater", "other",
+    ] = Field(default="other", description="Saved product type used to select a parametric model")
+    product_type_provenance: Optional[Provenance] = None
+    shipping_mode: Optional[Literal["courier_parcel", "ltl_pallet", "full_truck", "container", "ecommerce_marketplace"]] = None
     weight_kg: float = Field(..., gt=0, le=5000, description="Net weight in kg (>0)")
     fragility_class: FragilityClass = Field(..., description="Fragility class (LOW, MEDIUM, HIGH, VERY_HIGH)")
     fragility_note: Optional[str] = Field(None, max_length=500)
@@ -403,6 +409,7 @@ class StandardsCheckResult(BaseModel):
     status: CheckStatus
     details: str
     clause: Optional[str] = None
+    organization: str = "ISO"
     parameters_used: Dict[str, Any] = Field(default_factory=dict)
     sub_check_results: List[Dict[str, Any]] = Field(default_factory=list)
     what_is_still_required: List[str] = Field(default_factory=list)

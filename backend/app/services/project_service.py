@@ -14,7 +14,7 @@ from sqlalchemy import select, delete, update, or_, and_
 from sqlalchemy.orm import Session
 
 from app.models.models import Project, SystemSettings
-from app.schemas.schemas import ProjectCreate, AdminSettingsUpdate, AdminSettingsResponse
+from app.schemas.schemas import ProjectCreate, AdminSettingsUpdate, AdminSettingsResponse, DimensionsInput, ComponentInput
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,9 @@ def create_project(
     status = "completed" if pipeline_result else "draft"
     prod = project_in.product
 
+    canonical_components = project_in.components or prod.components
+    product_data = prod.model_dump(mode="json")
+    product_data["components"] = [c.model_dump(mode="json") for c in canonical_components]
     proj = Project(
         name=project_in.name,
         brand=prod.brand,
@@ -52,8 +55,8 @@ def create_project(
         description=project_in.description,
         status=status,
         language=project_in.language,
-        product_data=prod.model_dump(mode="json"),
-        components_data=[c.model_dump(mode="json") for c in project_in.components],
+        product_data=product_data,
+        components_data=[c.model_dump(mode="json") for c in canonical_components],
         baseline_data=project_in.baseline.model_dump(mode="json"),
         planned_data=project_in.planned.model_dump(mode="json") if project_in.planned else None,
         optimization_config=project_in.optimization_config.model_dump(mode="json"),
@@ -120,6 +123,31 @@ def update_project(db: Session, project_id: str, update_data: dict[str, Any]) ->
         return None
 
     for field, val in update_data.items():
+        if field == "product_data" and isinstance(val, dict):
+            current = dict(proj.product_data or {})
+            merged = {**current, **val}
+            if isinstance(current.get("packed_dimensions"), dict) and isinstance(val.get("packed_dimensions"), dict):
+                merged["packed_dimensions"] = {**current["packed_dimensions"], **val["packed_dimensions"]}
+            if "packed_dimensions" in val:
+                dims = merged.get("packed_dimensions")
+                if not isinstance(dims, dict):
+                    raise ValueError("Product dimensions are required and must be provided in millimetres.")
+                DimensionsInput(**dims)
+            if "weight_kg" in val and (not isinstance(merged.get("weight_kg"), (int, float)) or merged["weight_kg"] <= 0):
+                raise ValueError("Product weight must be greater than zero kg.")
+            if "product_type" in val and merged.get("product_type") not in {"blender", "stand_fan", "ceiling_fan", "washing_machine", "refrigerator", "air_conditioner", "tv", "kettle", "microwave", "water_heater", "other"}:
+                raise ValueError("Product type is not supported.")
+            if "components" in val:
+                if not isinstance(merged["components"], list):
+                    raise ValueError("Product components must be a list.")
+                merged["components"] = [ComponentInput(**component).model_dump(mode="json") for component in merged["components"]]
+            if isinstance(current.get("provenance"), dict) and isinstance(val.get("provenance"), dict):
+                merged["provenance"] = {**current["provenance"], **val["provenance"]}
+            # Keep the one canonical component list mirrored for older API consumers.
+            if "components" in merged:
+                proj.components_data = merged["components"]
+            setattr(proj, field, merged)
+            continue
         if hasattr(proj, field):
             setattr(proj, field, val)
 

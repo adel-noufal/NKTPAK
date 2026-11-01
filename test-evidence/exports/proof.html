@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NxtPak AI — Packaging Optimization Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #1e293b; background: #fff; line-height: 1.5; }
+    .header { border-bottom: 2px solid #3b82f6; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+    h1 { color: #0f172a; margin: 0 0 8px 0; font-size: 26px; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+    .badge-prototype { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    .badge-pass { background: #dcfce7; color: #166534; }
+    .badge-fail { background: #fee2e2; color: #991b1b; }
+    .badge-review { background: #fef9c3; color: #854d0e; }
+    .badge-test { background: #e0f2fe; color: #075985; }
+    .section { margin-bottom: 32px; }
+    h2 { font-size: 18px; color: #1e3a8a; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th, td { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+    th { background: #f8fafc; font-weight: 600; color: #334155; }
+    .formula-box { background: #f1f5f9; border-left: 3px solid #64748b; padding: 12px; font-family: monospace; font-size: 13px; margin: 8px 0; }
+    .disclaimer-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 16px; color: #92400e; margin-top: 30px; font-size: 13px; }
+    .footer { font-size: 12px; color: #64748b; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>NxtPak AI — Packaging Optimization Report</h1>
+      <span class="badge badge-prototype">PRELIMINARY GEOMETRIC PROTOTYPE</span>
+      <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">Project: <strong>Tornado table blender</strong> | Generated: 2026-11-01 08:40:37 UTC</p>
+    </div>
+    <div style="text-align: right; font-size: 13px; color: #64748b;">
+      NxtPak Packaging Systems<br>
+      El Araby Group Industrial Packaging
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>1. Product Specifications</h2>
+    <table>
+      <tr><th>Property</th><th>Value</th><th>Data Provenance / Label</th></tr>
+      <tr><td>Product Name</td><td>Tornado table blender</td><td>USER_ENTERED</td></tr>
+      <tr><td>Dimensions (L × W × H)</td><td>180.0 × 165.0 × 390.0 mm</td><td>USER_ENTERED</td></tr>
+      <tr><td>Product Volume</td><td>11583000.0 mm³</td><td>CALCULATED</td></tr>
+      <tr><td>Packed Weight</td><td>3.2 kg</td><td>USER_ENTERED</td></tr>
+      <tr><td>Fragility Class</td><td>HIGH</td><td>USER_ENTERED (Engineering selection)</td></tr>
+    </table>
+  </div>
+
+  
+  <div class="section">
+    <h2>2. Baseline Packaging (Current)</h2>
+    <table>
+      <tr><th>Property</th><th>Value</th></tr>
+      <tr><td>Outer Dimensions</td><td>700.0 × 200.0 × 420.0 mm</td></tr>
+      <tr><td>Board Thickness & Type</td><td>7.0 mm (BC Double Wall)</td></tr>
+      <tr><td>Unit Cost</td><td>8.2 EGP</td></tr>
+      <tr><td>Data Label</td><td><span class="badge" style="background:#e0e7ff;color:#3730a3;">USER_ENTERED</span></td></tr>
+    </table>
+  </div>
+  
+
+  <div class="section">
+    <h2>3. Packaging Alternatives Comparison</h2>
+    <div class="formula-box">
+      • Volume Utilization = Product Volume [mm³] / Internal Packaging Volume [mm³]<br>
+      • Material Saved (%) = (Baseline Volume − Proposed Volume) / Baseline Volume × 100<br>
+      • Cost Saved = Baseline Unit Cost − Proposed Unit Cost
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Alternative</th>
+          <th>Outer Dims (mm)</th>
+          <th>Clearance</th>
+          <th>Inserts</th>
+          <th>Vol. Util.</th>
+          <th>Material Vol.</th>
+          <th>Savings vs Baseline</th>
+          <th>Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr >
+          <td><strong>Tight Fit (Material-Optimized)</strong></td>
+          <td>218.0 × 203.0 × 428.0</td>
+          <td>15.0 mm</td>
+          <td>None (Direct fit with protective kraft liner)</td>
+          <td>67.35%</td>
+          <td>1795.54 cm³</td>
+          <td>
+            
+              <strong>56.67%</strong> material
+              
+                <br>(4.65 EGP)
+              
+            
+          </td>
+          <td>
+            
+              <span class="badge" style="background:#f1f5f9;color:#475569;">ALTERNATIVE</span>
+            
+          </td>
+        </tr>
+        
+        <tr >
+          <td><strong>Standard Fit (Balanced Protection)</strong></td>
+          <td>258.0 × 243.0 × 468.0</td>
+          <td>25.0 mm</td>
+          <td>Die-cut corrugated edge corner protectors (10mm)</td>
+          <td>42.86%</td>
+          <td>7644.3 cm³</td>
+          <td>
+            
+              <strong>42.63%</strong> material
+              
+                <br>(3.03 EGP)
+              
+            
+          </td>
+          <td>
+            
+              <span class="badge" style="background:#f1f5f9;color:#475569;">ALTERNATIVE</span>
+            
+          </td>
+        </tr>
+        
+        <tr style="background: #eff6ff;">
+          <td><strong>Protective Cushion (Fragility-Engineered)</strong></td>
+          <td>312.0 × 297.0 × 522.0</td>
+          <td>40.0 mm</td>
+          <td>20.0mm molded pulp / corrugated buffer</td>
+          <td>26.56%</td>
+          <td>18592.74 cm³</td>
+          <td>
+            
+              <strong>20.74%</strong> material
+              
+                <br>(1.05 EGP)
+              
+            
+          </td>
+          <td>
+            
+              <span class="badge badge-pass">RECOMMENDED</span>
+            
+          </td>
+        </tr>
+        
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>4. ISO Standards Registry Evaluation</h2>
+    <p style="font-size: 13px; color: #475569; margin-top: 4px;">
+      <em>Evaluated against: NxtPak ISO registry v1 (see source list). No company-specific requirements loaded.</em>
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Standard ID</th>
+          <th>Title</th>
+          <th>Check Type</th>
+          <th>Status</th>
+          <th>Details & Remaining Steps</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <td><strong>ISO 18602:2013</strong></td>
+          <td style="font-size: 13px;">Packaging and the environment — Optimization of the packaging system</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">HUMAN_REVIEW</span></td>
+          <td>
+            
+              <span class="badge badge-review">NEEDS REVIEW</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            Sub-checks: volume-utilization=FAIL, material-savings=NOT_CONFIGURED. Overall conformance assessment requires human engineering review. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Full ISO 18602 assessment by a qualified packaging engineer is required for conformance.</li>
+                
+                  <li>Enter baseline packaging dimensions and material usage to enable savings calculation.</li>
+                
+                  <li>Qualified packaging engineer must perform full ISO 18602 system-level assessment.</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 18601:2013</strong></td>
+          <td style="font-size: 13px;">Packaging and the environment — General requirements for the use of ISO standards in the field of packaging and the environment</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">HUMAN_REVIEW</span></td>
+          <td>
+            
+              <span class="badge badge-review">NEEDS REVIEW</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 18601:2013 requires qualified engineering review. Software cannot substitute for human assessment.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Qualified packaging engineer must review against this standard.</li>
+                
+                  <li>Refer to: https://www.iso.org/standard/55867.html</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 4180:2009</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages — General rules for the compilation of performance test schedules</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">HUMAN_REVIEW</span></td>
+          <td>
+            
+              <span class="badge badge-review">NEEDS REVIEW</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 4180:2009 requires qualified engineering review. Software cannot substitute for human assessment.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Qualified packaging engineer must review against this standard.</li>
+                
+                  <li>Refer to: https://www.iso.org/standard/45873.html</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2233:2000</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Conditioning for testing</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2233:2000 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 2233:2000.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • conditioning_temperature_c [°C]: Standard conditioning temperature</li>
+                
+                  <li>  • conditioning_humidity_pct [%RH]: Standard conditioning relative humidity</li>
+                
+                  <li>  • conditioning_duration_h [hours]: Conditioning period</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2206:1987</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages — Identification of parts when testing</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PROGRAMMATIC</span></td>
+          <td>
+            
+              <span class="badge badge-pass">PASS</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2206 face, edge, and corner naming convention is applied deterministically to all generated packaging geometry. Face 1=bottom, Face 2=top, Face 3=front, Face 4=back, Face 5=left, Face 6=right. [PROGRAMMATIC]
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical test execution and result recording requires human operator (PHYSICAL_TEST aspect).</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2248:1985</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages — Vertical impact test by dropping</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2248:1985 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 2248:1985.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • drop_height_mm [mm]: Drop height per test schedule</li>
+                
+                  <li>  • drop_orientation [enum]: Face/edge/corner per ISO 2206</li>
+                
+                  <li>  • number_of_drops [integer]: Number of drops per orientation</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2244:2000</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Horizontal impact tests</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2244:2000 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 2244:2000.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • impact_velocity_m_s [m/s]: Impact velocity for horizontal impact test</li>
+                
+                  <li>  • test_method [enum]: Incline impact or flat car shunting</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 8768:1987</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages — Toppling test</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 8768:1987 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 8768:1987.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • toppling_angle_deg [degrees]: Angle from which the package is toppled</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2234:2000</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Stacking tests using a static load</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2234:2000 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 2234:2000.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • static_load_kg [kg]: Static load applied to the top surface</li>
+                
+                  <li>  • load_duration_h [hours]: Duration of load application</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 12048:1994</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages — Compression and stacking tests using a compression tester</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 12048:1994 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 12048:1994.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • compression_force_n [N]: Maximum compression force</li>
+                
+                  <li>  • compression_rate_mm_min [mm/min]: Rate of compression (if constant rate method)</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2247:2000</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Vibration tests at fixed low frequency</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2247:2000 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 2247:2000.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • vibration_frequency_hz [Hz]: Fixed vibration frequency</li>
+                
+                  <li>  • vibration_amplitude_mm [mm]: Peak-to-peak amplitude</li>
+                
+                  <li>  • vibration_duration_min [minutes]: Duration of vibration test</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 8318:2000</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Sinusoidal vibration tests using a variable frequency</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 8318:2000 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 8318:2000.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • frequency_range_hz_min [Hz]: Lower sweep frequency</li>
+                
+                  <li>  • frequency_range_hz_max [Hz]: Upper sweep frequency</li>
+                
+                  <li>  • sweep_rate_oct_min [oct/min]: Frequency sweep rate</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 13355:2016</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Vertical random vibration test</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 13355:2016 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 13355:2016.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • psd_profile [g²/Hz]: Power spectral density profile (must be user-configured from licensed standard)</li>
+                
+                  <li>  • test_duration_min [minutes]: Test duration per axis</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 2875:2000</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages — Water-spray test</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PHYSICAL_TEST</span></td>
+          <td>
+            
+              <span class="badge badge-test">PHYSICAL TEST</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            ISO 2875:2000 is a PHYSICAL_TEST standard. Software cannot execute or simulate physical tests. Status is always NOT_VERIFIABLE. A software PASS is never proof of ISO certification or successful physical testing. Physical-test standards require laboratory execution. No compliance certificates are generated.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Physical laboratory test required: ISO 2875:2000.</li>
+                
+                  <li>Configure test parameters (only available to users holding the licensed standard).</li>
+                
+                  <li>  • spray_rate_mm_h [mm/h]: Water spray rate</li>
+                
+                  <li>  • spray_duration_min [minutes]: Spray duration</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 3676:2012</strong></td>
+          <td style="font-size: 13px;">Packaging — Complete, filled transport packages and unit loads — Unit load dimensions</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PROGRAMMATIC</span></td>
+          <td>
+            
+              <span class="badge" style="background:#f1f5f9;color:#64748b;">NOT CONFIG</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            Unit load dimensions not configured. Provide target_unit_load_length_mm, _width_mm, _height_mm to enable this check.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Configure unit load dimensions (L×W×H mm) in OptimizationConfig.</li>
+                
+                  <li>Values must come from the licensed ISO 3676 standard or approved company specification.</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+        <tr>
+          <td><strong>ISO 3394:2012</strong></td>
+          <td style="font-size: 13px;">Packaging — Dimensions of rigid rectangular packages</td>
+          <td><span class="badge" style="background:#f3e8ff;color:#6b21a8;">PROGRAMMATIC</span></td>
+          <td>
+            
+              <span class="badge" style="background:#f1f5f9;color:#64748b;">NOT CONFIG</span>
+            
+          </td>
+          <td style="font-size: 12px;">
+            Module dimensions not configured. Provide module_length_mm and module_width_mm to enable this check.
+            
+              <ul style="margin: 4px 0 0 0; padding-left: 16px; color: #64748b;">
+                
+                  <li>Configure modular base dimensions (module_length_mm, module_width_mm) in OptimizationConfig.</li>
+                
+                  <li>Values must come from the licensed ISO 3394 standard or approved company specification.</li>
+                
+              </ul>
+            
+          </td>
+        </tr>
+        
+      </tbody>
+    </table>
+  </div>
+
+  <div class="disclaimer-box">
+    <strong>Mandatory Engineering Disclaimer:</strong><br>
+    A software PASS is never proof of ISO certification or of successful physical testing. All packaging geometry and savings estimates are preliminary engineering prototypes. Physical testing (drop, compression, vibration, environmental) in an accredited laboratory is strictly required before commercial production.
+  </div>
+
+  <div class="footer">
+    Report generated by NxtPak AI Engine v1.0. Active Geometry Engine: trimesh.
+  </div>
+
+</body>
+</html>

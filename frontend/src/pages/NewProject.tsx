@@ -14,6 +14,8 @@ import type { ProjectDraft } from '../api/projects'
 import {
   FragilityClass,
   SourceType,
+  PRODUCT_TYPES,
+  type ProductType,
   type ProductSearchResponse,
   type ProductCandidate,
   type CandidateSpecsResponse,
@@ -22,6 +24,7 @@ import {
   type UploadFileResult,
   type Provenance,
 } from '../types'
+import { inferProductType } from '../components/viewer/productModel'
 
 // ── Provenance Badge Component ────────────────────────────────
 export const ProvenanceBadge: React.FC<{
@@ -135,6 +138,8 @@ export const NewProject: React.FC = () => {
   const [projectName, setProjectName] = useState('')
   const [brand, setBrand] = useState('')
   const [model, setModel] = useState('')
+  const [productType, setProductType] = useState<ProductType | ''>('')
+  const [productTypeProvenance, setProductTypeProvenance] = useState<Provenance>({ source_name: 'User entered', source_type: SourceType.USER_ENTERED })
   const [sku, setSku] = useState('')
   const [weightKg, setWeightKg] = useState<number | ''>('')
   const [fragility, setFragility] = useState<FragilityClass | ''>('')
@@ -215,6 +220,12 @@ export const NewProject: React.FC = () => {
       if (result.name) { setProjectName(result.name); filled.push('name') }
       if (result.brand) { setBrand(result.brand); filled.push('brand') }
       if (result.model_number) { setModel(result.model_number); filled.push('model') }
+      if (result.product_type && PRODUCT_TYPES.includes(result.product_type as ProductType)) {
+        setProductType(result.product_type as ProductType)
+        const typeField = result.fields.find((field) => field.field === 'product_type')
+        const sourceType = typeField?.provenance === 'AI_ESTIMATED' ? SourceType.AI_ESTIMATED : SourceType.FROM_DESCRIPTION
+        setProductTypeProvenance({ source_name: sourceType === SourceType.AI_ESTIMATED ? 'AI classification from description' : 'From your description', source_type: sourceType })
+      }
       if (result.sku) { setSku(result.sku); filled.push('sku') }
       if (result.net_weight_kg) { setWeightKg(result.net_weight_kg); filled.push('weight') }
       if (result.product_length_mm) { setProductL(result.product_length_mm); filled.push('productL') }
@@ -297,6 +308,9 @@ export const NewProject: React.FC = () => {
     filled.push('brand')
     setModel(cand.model)
     filled.push('model')
+    const inferredType = inferProductType(`${cand.category || ''} ${cand.name} ${cand.model}`)
+    setProductType(inferredType || '')
+    if (inferredType) setProductTypeProvenance({ source_name: cand.provenance.source_name, source_url: cand.provenance.source_url, retrieval_date: cand.provenance.retrieval_date, source_type: cand.provenance.source_type })
 
     if (cand.sku) { setSku(cand.sku); filled.push('sku') }
     if (cand.net_weight_kg) { setWeightKg(cand.net_weight_kg); filled.push('weight') }
@@ -499,6 +513,7 @@ export const NewProject: React.FC = () => {
     { name: 'Project Name', val: projectName, required: true },
     { name: 'Brand', val: brand, required: true },
     { name: 'Model Number', val: model, required: true },
+    { name: 'Product Type', val: productType, required: true },
     { name: 'Net Weight', val: weightKg, required: true },
     { name: 'Fragility', val: fragility, required: true },
     { name: 'Product Length', val: productL, required: true },
@@ -529,6 +544,7 @@ export const NewProject: React.FC = () => {
     if (!projectName.trim()) errors['projectName'] = 'Project Name is required.'
     if (!brand.trim()) errors['brand'] = 'Brand is required.'
     if (!model.trim()) errors['model'] = 'Model number is required.'
+    if (!productType) errors['productType'] = 'Product type is required.'
     if (weightKg === '' || Number(weightKg) <= 0) errors['weightKg'] = 'Net weight must be greater than 0 kg.'
     if (!fragility) errors['fragility'] = 'Please select a Fragility Class.'
     if (productL === '' || Number(productL) <= 0) errors['productL'] = 'Length must be > 0.'
@@ -613,6 +629,8 @@ export const NewProject: React.FC = () => {
           model: model.trim(),
           sku: sku.trim() || undefined,
           category: searchCategory || selectedCandidate?.category || undefined,
+          product_type: productType as ProductType,
+          product_type_provenance: productTypeProvenance,
           weight_kg: Number(weightKg),
           fragility_class: fragility as FragilityClass,
           packed_dimensions: {
@@ -1225,6 +1243,27 @@ export const NewProject: React.FC = () => {
                 placeholder="e.g. 6221127018394"
                 className={`w-full text-xs px-3 py-2 rounded-md border font-mono border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 ${highlightClass('sku')}`}
               />
+            </div>
+
+            {/* Saved parametric product type */}
+            <div>
+              <label className="block text-xs font-medium text-stone-700 dark:text-stone-300 mb-1">
+                Product Type <span className="text-rose-500">*</span>
+              </label>
+              <select
+                data-testid="product-type-select"
+                value={productType}
+                onChange={(event) => {
+                  setProductType(event.target.value as ProductType)
+                  setProductTypeProvenance({ source_name: 'User entered', source_type: SourceType.USER_ENTERED })
+                }}
+                className={`w-full text-xs px-3 py-2 rounded-md border ${validationErrors.productType ? 'border-rose-400 bg-rose-50/20' : 'border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100'}`}
+              >
+                <option value="">-- Select Product Type --</option>
+                {PRODUCT_TYPES.map((type) => <option key={type} value={type}>{type.split('_').join(' ')}</option>)}
+              </select>
+              <p className="mt-1 text-[10px] text-stone-500">Source: {productTypeProvenance.source_name}</p>
+              {validationErrors.productType && <p className="text-[10px] text-rose-500 mt-0.5">{validationErrors.productType}</p>}
             </div>
 
             {/* Net Weight */}

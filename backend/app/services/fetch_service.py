@@ -735,23 +735,73 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
             candidates.append(candidate)
 
     # 3. Match against Enriched Catalog Database with full physical dimensions
-    for key, spec in CATALOG_SPECS_DATABASE.items():
-        key_norm = normalize_query_string(spec["model"])
-        if key_norm == norm_query or norm_query in key_norm or key_norm in norm_query:
-            # Build Candidate with complete physical specifications
-            comps = [ComponentSpec(**comp) for comp in spec.get("components", [])]
-            
-            # Build spec fields dictionary
-            spec_fields_dict: Dict[str, ProductSpecField] = {}
-            for f_name, f_data in spec.get("evidence", {}).items():
-                sources_list = [SourceEvidence(**s) for s in f_data.get("sources", [])]
-                spec_fields_dict[f_name] = ProductSpecField(
-                    value=f_data.get("value"),
-                    unit=f_data.get("unit"),
-                    status=SpecStatus(f_data.get("status", "found_single_source")),
-                    sources=sources_list,
-                )
+    from app.services.catalog_index import search_catalog, get_item_by_model
 
+    matched_items, catalog_did_you_mean, chips = search_catalog(
+        query=raw_query,
+        brand_filter=req.brand,
+        category_filter=req.category,
+    )
+    if catalog_did_you_mean:
+        did_you_mean = catalog_did_you_mean
+
+    for spec in matched_items:
+        comps = [ComponentSpec(**comp) for comp in spec.get("components", [])]
+        
+        # Build spec fields dictionary
+        spec_fields_dict: Dict[str, ProductSpecField] = {}
+        for f_name, f_data in spec.get("evidence", {}).items():
+            sources_list = [SourceEvidence(**s) for s in f_data.get("sources", [])]
+            spec_fields_dict[f_name] = ProductSpecField(
+                value=f_data.get("value"),
+                unit=f_data.get("unit"),
+                status=SpecStatus(f_data.get("status", "found_single_source")),
+                sources=sources_list,
+            )
+
+        cand = ProductCandidate(
+            name=spec["name"],
+            brand=spec["brand"],
+            model=spec["model"],
+            sku=spec.get("sku"),
+            category=spec.get("category"),
+            net_weight_kg=spec.get("net_weight_kg"),
+            gross_weight_kg=spec.get("gross_weight_kg"),
+            dimensions_mm=spec.get("dimensions_mm"),
+            carton_dimensions_mm=spec.get("carton_dimensions_mm"),
+            image_url=spec.get("images", [None])[0] if spec.get("images") else None,
+            images=spec.get("images", []),
+            datasheet_url=spec.get("datasheet_url"),
+            source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(spec['model'])}",
+            source_type=SourceType.EL_ARABY_WEBSITE,
+            confidence_score=0.98,
+            specs_table={
+                "Power": spec.get("power_voltage", "220V"),
+                "Color": spec.get("color", "Standard"),
+                "Sub Category": spec.get("sub_category", ""),
+                "Packed Status": "Disassembled in carton" if comps else "Assembled"
+            },
+            components=comps,
+            sources_checked=spec.get("sources_checked", []),
+            packed_dimensions_available=spec.get("packed_dimensions_available", True),
+            spec_fields=spec_fields_dict,
+            provenance=Provenance(
+                source_name="El Araby Official Catalog & Technical Datasheet",
+                source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(spec['model'])}",
+                retrieval_date=today,
+                source_type=SourceType.EL_ARABY_WEBSITE,
+                confidence=0.98,
+                evidence_snippet=f"Verified physical dimensions and components for {spec['model']}",
+            ),
+        )
+        candidates.append(cand)
+
+    # If no direct matches but typo correction found, include suggested candidate
+    if not candidates and catalog_did_you_mean:
+        suggested_item = get_item_by_model(catalog_did_you_mean)
+        if suggested_item:
+            spec = suggested_item
+            comps = [ComponentSpec(**comp) for comp in spec.get("components", [])]
             cand = ProductCandidate(
                 name=spec["name"],
                 brand=spec["brand"],
@@ -762,135 +812,28 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
                 gross_weight_kg=spec.get("gross_weight_kg"),
                 dimensions_mm=spec.get("dimensions_mm"),
                 carton_dimensions_mm=spec.get("carton_dimensions_mm"),
-                image_url=spec.get("images", [None])[0],
+                image_url=spec.get("images", [None])[0] if spec.get("images") else None,
                 images=spec.get("images", []),
                 datasheet_url=spec.get("datasheet_url"),
                 source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(spec['model'])}",
                 source_type=SourceType.EL_ARABY_WEBSITE,
-                confidence_score=0.98,
-                specs_table={
-                    "Power": spec.get("power_voltage", "220V"),
-                    "Color": spec.get("color", "Standard"),
-                    "Packed Status": "Disassembled in carton" if comps else "Assembled"
-                },
+                confidence_score=0.90,
+                notes=f"Did you mean '{spec['model']}'? (Typo corrected from '{raw_query}')",
                 components=comps,
                 sources_checked=spec.get("sources_checked", []),
                 packed_dimensions_available=spec.get("packed_dimensions_available", True),
-                spec_fields=spec_fields_dict,
                 provenance=Provenance(
-                    source_name="El Araby Official Catalog & Technical Datasheet",
+                    source_name="El Araby Product Catalog (Fuzzy Typo Match)",
                     source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(spec['model'])}",
                     retrieval_date=today,
                     source_type=SourceType.EL_ARABY_WEBSITE,
-                    confidence=0.98,
-                    evidence_snippet=f"Verified physical dimensions and components for {spec['model']}",
+                    confidence=0.90,
+                    evidence_snippet=f"Fuzzy match from '{raw_query}' to '{spec['model']}'",
                 ),
             )
             candidates.append(cand)
 
-    # Fallback to KNOWN_CATALOG_MODELS if not in CATALOG_SPECS_DATABASE
-    if not candidates:
-        for item in KNOWN_CATALOG_MODELS:
-            item_norm = normalize_query_string(item["model"])
-            if item_norm == norm_query or norm_query in item_norm:
-                candidates.append(
-                    ProductCandidate(
-                        name=item["name"],
-                        brand=item["brand"],
-                        model=item["model"],
-                        category=item.get("category"),
-                        source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(item['model'])}",
-                        source_type=SourceType.EL_ARABY_WEBSITE,
-                        confidence_score=0.95,
-                        packed_dimensions_available=False,
-                        not_found_message=f"No public source lists the packed dimensions of {item['model']}.",
-                        provenance=Provenance(
-                            source_name="El Araby Product Catalog",
-                            source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(item['model'])}",
-                            retrieval_date=today,
-                            source_type=SourceType.EL_ARABY_WEBSITE,
-                            confidence=0.95,
-                            evidence_snippet=f"Model catalog record found for {item['model']}",
-                        ),
-                    )
-                )
-
-    # 4. Fuzzy typo correction if no match (e.g. 'tsd-16w' -> 'Did you mean TSF-16W?')
-    if not candidates:
-        best_candidate_name = None
-        min_dist = 999
-        for item in KNOWN_CATALOG_MODELS:
-            dist = levenshtein_distance(norm_query, normalize_query_string(item["model"]))
-            if dist < min_dist and dist <= 3:
-                min_dist = dist
-                best_candidate_name = item["model"]
-
-        if best_candidate_name:
-            did_you_mean = best_candidate_name
-            norm_best = normalize_query_string(best_candidate_name)
-            if norm_best in CATALOG_SPECS_DATABASE:
-                spec = CATALOG_SPECS_DATABASE[norm_best]
-                comps = [ComponentSpec(**comp) for comp in spec.get("components", [])]
-                candidates.append(
-                    ProductCandidate(
-                        name=spec["name"],
-                        brand=spec["brand"],
-                        model=spec["model"],
-                        sku=spec.get("sku"),
-                        category=spec.get("category"),
-                        net_weight_kg=spec.get("net_weight_kg"),
-                        gross_weight_kg=spec.get("gross_weight_kg"),
-                        dimensions_mm=spec.get("dimensions_mm"),
-                        carton_dimensions_mm=spec.get("carton_dimensions_mm"),
-                        image_url=spec.get("images", [None])[0],
-                        images=spec.get("images", []),
-                        datasheet_url=spec.get("datasheet_url"),
-                        source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(spec['model'])}",
-                        source_type=SourceType.EL_ARABY_WEBSITE,
-                        confidence_score=0.90,
-                        notes=f"Did you mean '{spec['model']}'? (Typo corrected from '{raw_query}')",
-                        components=comps,
-                        sources_checked=spec.get("sources_checked", []),
-                        packed_dimensions_available=True,
-                        provenance=Provenance(
-                            source_name="El Araby Product Catalog (Fuzzy Typo Match)",
-                            source_url=f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(spec['model'])}",
-                            retrieval_date=today,
-                            source_type=SourceType.EL_ARABY_WEBSITE,
-                            confidence=0.90,
-                            evidence_snippet=f"Fuzzy match (edit distance={min_dist}) from '{raw_query}' to '{spec['model']}'",
-                        ),
-                    )
-                )
-
-    # 5. Unknown query fallback (Zero invented numbers: say not found plainly)
-    if not candidates and not did_you_mean:
-        brand_assigned = req.brand if req.brand and req.brand != "Other…" else "El Araby Group"
-        search_url = f"https://www.elarabygroup.com/en/search?q={urllib.parse.quote(raw_query)}"
-        candidates.append(
-            ProductCandidate(
-                name=f"{brand_assigned} {raw_query}",
-                brand=brand_assigned,
-                model=raw_query.upper(),
-                category=req.category,
-                source_url=search_url,
-                source_type=SourceType.USER_ENTERED,
-                confidence_score=0.40,
-                packed_dimensions_available=False,
-                not_found_message=f"No public source lists the packed dimensions of {raw_query.upper()}.",
-                notes="No online datasheet found. Please enter physical measurements or upload CAD.",
-                provenance=Provenance(
-                    source_name="Live Search Query",
-                    source_url=search_url,
-                    retrieval_date=today,
-                    source_type=SourceType.USER_ENTERED,
-                    confidence=0.40,
-                    evidence_snippet=f"Search performed across official sites and retailers for '{raw_query}'",
-                ),
-            )
-        )
-
-    # 6. Save in runtime cache
+    # 4. Save in runtime cache (only if real candidates found)
     if candidates:
         db = SessionLocal()
         try:
@@ -914,9 +857,9 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
             db.close()
 
     status_msg = (
-        f"Found {len(candidates)} candidate(s) for '{raw_query}'."
+        f"Found {len(candidates)} verified candidate(s) for '{raw_query}'."
         if candidates
-        else (f"No direct match found. Did you mean {did_you_mean}?" if did_you_mean else f"No match found for '{raw_query}'.")
+        else (f"No direct match found. Did you mean '{did_you_mean}'?" if did_you_mean else f"No products found for '{raw_query}'. You can enter specifications manually or upload a CAD model.")
     )
 
     return ProductSearchResponse(
@@ -937,18 +880,24 @@ def get_candidate_specs_by_id(candidate_id: str, candidate_model: Optional[str] 
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Match by candidate model in enriched catalog
+    # Match by candidate model in enriched catalog or catalog_index
+    from app.services.catalog_index import get_item_by_model
+
     matched_spec = None
     if candidate_model:
         norm_m = normalize_query_string(candidate_model)
         matched_spec = CATALOG_SPECS_DATABASE.get(norm_m)
+        if not matched_spec:
+            matched_spec = get_item_by_model(candidate_model)
 
     if not matched_spec:
-        # Check all models for a candidate_id or default to TSF16W if not found
+        # Check all models for candidate_id or candidate_model substring
         for k, sp in CATALOG_SPECS_DATABASE.items():
             if candidate_id and candidate_id in str(sp):
                 matched_spec = sp
                 break
+        if not matched_spec and candidate_model:
+            matched_spec = get_item_by_model(candidate_model)
         if not matched_spec:
             matched_spec = CATALOG_SPECS_DATABASE["TSF16W"]
 
@@ -989,12 +938,38 @@ def get_candidate_specs_by_id(candidate_id: str, candidate_model: Optional[str] 
 
     comps = [ComponentSpec(**c) for c in matched_spec.get("components", [])]
 
-    # Calculate honest summary bar metrics
-    verified_count = 11
-    total_specs = 16
-    sources_summary = "9 from elarabygroup.com + Jumia, 2 from datasheet"
-    needs_confirm_count = 3
-    not_found_count = 2
+    # Calculate honest summary bar metrics dynamically from real fields
+    fields_checked = [
+        bool(matched_spec.get("name")),
+        bool(matched_spec.get("brand")),
+        bool(matched_spec.get("model")),
+        bool(matched_spec.get("sku")),
+        bool(matched_spec.get("category")),
+        bool(matched_spec.get("dimensions_mm", {}).get("length") if isinstance(matched_spec.get("dimensions_mm"), dict) else False),
+        bool(matched_spec.get("dimensions_mm", {}).get("width") if isinstance(matched_spec.get("dimensions_mm"), dict) else False),
+        bool(matched_spec.get("dimensions_mm", {}).get("height") if isinstance(matched_spec.get("dimensions_mm"), dict) else False),
+        bool(matched_spec.get("carton_dimensions_mm", {}).get("length") if isinstance(matched_spec.get("carton_dimensions_mm"), dict) else False),
+        bool(matched_spec.get("carton_dimensions_mm", {}).get("width") if isinstance(matched_spec.get("carton_dimensions_mm"), dict) else False),
+        bool(matched_spec.get("carton_dimensions_mm", {}).get("height") if isinstance(matched_spec.get("carton_dimensions_mm"), dict) else False),
+        bool(matched_spec.get("net_weight_kg")),
+        bool(matched_spec.get("gross_weight_kg")),
+        bool(matched_spec.get("color")),
+        bool(matched_spec.get("power_voltage")),
+        bool(comps),
+    ]
+    total_specs = len(fields_checked)
+    verified_count = sum(1 for f in fields_checked if f)
+    not_found_count = total_specs - verified_count
+    needs_confirm_count = 1 if not_found_count > 0 else 0
+
+    sources_checked = matched_spec.get("sources_checked", [])
+    src_names = [s.get("source") for s in sources_checked if isinstance(s, dict) and s.get("source")]
+    if src_names:
+        sources_summary = f"{len(src_names)} source(s): {', '.join(src_names[:2])}"
+    else:
+        sources_summary = "El Araby Official Catalog"
+
+    summary_text = f"{verified_count} of {total_specs} specifications verified ({sources_summary})"
 
     return CandidateSpecsResponse(
         candidate_id=candidate_id,
@@ -1012,14 +987,14 @@ def get_candidate_specs_by_id(candidate_id: str, candidate_model: Optional[str] 
         power_voltage=matched_spec.get("power_voltage"),
         images=matched_spec.get("images", []),
         datasheet_url=matched_spec.get("datasheet_url"),
-        sources_checked=matched_spec.get("sources_checked", []),
+        sources_checked=sources_checked,
         summary_bar={
             "filled_count": verified_count,
             "total_count": total_specs,
             "sources_summary": sources_summary,
             "needs_confirmation_count": needs_confirm_count,
             "not_found_count": not_found_count,
-            "text": f"{verified_count} of {total_specs} filled: {sources_summary} · {needs_confirm_count} need your confirmation · {not_found_count} not found"
+            "text": summary_text,
         },
         packed_dimensions_available=matched_spec.get("packed_dimensions_available", True),
         not_found_message=None if matched_spec.get("packed_dimensions_available", True) else f"No public source lists the packed dimensions of {matched_spec['model']}.",

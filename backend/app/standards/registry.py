@@ -35,7 +35,7 @@ SOFTWARE_DISCLAIMER = (
 )
 
 EVALUATION_STATEMENT = (
-    "Evaluated against: NxtPak ISO registry v1 (see source list). "
+    "Evaluated against: NxtPak ISO registry v1 and ISTA registry v1 (see source list). "
     "No company-specific requirements loaded."
 )
 
@@ -66,11 +66,23 @@ class StandardsRegistry:
         self._loaded = False
 
     def load(self, path: Optional[str] = None) -> None:
-        """Load the base registry from the configured path."""
+        """Load the base ISO registry and ISTA registry."""
         registry_path = path or settings.standards_registry_path
         data = _load_registry_file(registry_path)
-        self._standards = data.get("standards", [])
+        self._standards = list(data.get("standards", []))
         self._registry_version = data.get("registry_version", "1")
+
+        # Load ISTA standards registry if present
+        ista_path = Path(registry_path).parent / "ista_registry.json"
+        if ista_path.exists():
+            try:
+                ista_data = _load_registry_file(str(ista_path))
+                ista_items = ista_data.get("standards", [])
+                self._standards.extend(ista_items)
+                logger.info("Loaded %d ISTA standards from %s", len(ista_items), ista_path)
+            except Exception as e:
+                logger.warning("Could not load ISTA registry: %s", e)
+
         self._loaded = True
         logger.info(
             "Standards registry loaded: %d entries (version %s)",
@@ -524,24 +536,27 @@ class StandardsRegistry:
         for entry in self.get_all_standards():
             entry_id = entry.get("entry_id", "")
             check_type = entry.get("check_type", "HUMAN_REVIEW")
+            org = entry.get("organization", "ISO")
 
             if entry_id == "ISO-18602":
-                results.append(
-                    self._check_iso18602(entry, product_volume_mm3, alternative, baseline)
-                )
+                result = self._check_iso18602(entry, product_volume_mm3, alternative, baseline)
             elif entry_id == "ISO-2206":
-                results.append(self._check_iso2206(entry))
+                result = self._check_iso2206(entry)
             elif entry_id == "ISO-3676":
-                results.append(self._check_iso3676(entry, alternative, opt_config))
+                result = self._check_iso3676(entry, alternative, opt_config)
             elif entry_id == "ISO-3394":
-                results.append(self._check_iso3394(entry, alternative, opt_config))
+                result = self._check_iso3394(entry, alternative, opt_config)
             elif check_type == CheckType.PHYSICAL_TEST.value:
-                results.append(self._check_physical_test(entry))
+                result = self._check_physical_test(entry)
             elif check_type == CheckType.HUMAN_REVIEW.value:
-                results.append(self._check_human_review(entry))
+                result = self._check_human_review(entry)
             else:
                 # Unknown check type — default to NEEDS_REVIEW
-                results.append(self._check_human_review(entry))
+                result = self._check_human_review(entry)
+
+            # Stamp organization from registry entry (ISO or ISTA)
+            result.organization = org
+            results.append(result)
 
         return results
 
@@ -674,4 +689,53 @@ def get_recommendation_constraints(fragility_class: str) -> dict:
             "These constraints are ENGINEERING_ASSUMPTIONs derived from the ISO registry. "
             "Physical lab tests (ISO 2234, ISO 2248) must validate them before production."
         ),
+    }
+
+
+def generate_test_plan(
+    product_weight_kg: Optional[float],
+    distribution_channel: Optional[str] = None,
+    fragility: str = "MEDIUM",
+    is_palletized: bool = False,
+) -> dict[str, Any]:
+    """Suggest current physical procedures without inventing their test levels."""
+    weight = float(product_weight_kg) if product_weight_kg is not None else None
+    channel = (distribution_channel or "").lower().replace("_", "-").strip()
+    suggestions: list[dict[str, str]] = []
+    if any(term in channel for term in ("amazon", "sioc", "e-commerce", "ecommerce", "marketplace")):
+        suggestions.append({"standard_identifier": "ISTA 6-Amazon.com-SIOC", "reason": "Use when the product ships in its own container through the Amazon SIOC distribution system."})
+    elif any(term in channel for term in ("parcel", "courier")):
+        if weight is None or weight <= 70:
+            suggestions.append({"standard_identifier": "ISTA 3A", "reason": "General simulation procedure for individually shipped parcel products within its published weight scope."})
+        if weight is not None and weight <= 68:
+            suggestions.extend([
+                {"standard_identifier": "ISTA 1A", "reason": "Lower-intensity integrity screening alternative; it is not a transport simulation."},
+                {"standard_identifier": "ISTA 2A", "reason": "Partial-simulation alternative for individually packaged products within its published weight scope."},
+            ])
+        if weight is not None and weight > 70:
+            suggestions.append({"standard_identifier": "ISTA 3B", "reason": "Review for LTL freight distribution when the shipment is not an individual parcel."})
+    elif any(term in channel for term in ("ltl", "less-than-truckload")):
+        suggestions.append({"standard_identifier": "ISTA 3B", "reason": "General simulation procedure for mixed packaged-product loads moving through LTL distribution."})
+        if is_palletized:
+            suggestions.append({"standard_identifier": "ISTA 3E", "reason": "Also consider for similar products secured as a unitized load when distribution is full-truckload rather than mixed LTL."})
+        if weight is None or weight <= 45:
+            suggestions.append({"standard_identifier": "ISTA 3F", "reason": "Candidate for individual products in a mixed pallet sent from a distribution center to a retail outlet, within its published weight scope."})
+    elif is_palletized or any(term in channel for term in ("pallet", "full-truck", "truckload", "container")):
+        suggestions.append({"standard_identifier": "ISTA 3E", "reason": "Candidate for similar products secured as a unitized load in full-truckload distribution."})
+        suggestions.append({"standard_identifier": "ISTA 3B", "reason": "Candidate if the pallet is handled as part of a mixed LTL load."})
+        if weight is None or weight <= 45:
+            suggestions.append({"standard_identifier": "ISTA 3F", "reason": "Candidate for an individual package in a mixed regional retail pallet shipment, within its published weight scope."})
+    # With no shipping channel, a procedure cannot be selected responsibly.
+
+    if fragility.upper() in {"HIGH", "VERY_HIGH"}:
+        suggestions = [{**item, "reason": item["reason"] + " Confirm damage tolerance and evaluation criteria with the laboratory."} for item in suggestions]
+    return {
+        "primary_standard": suggestions[0]["standard_identifier"] if suggestions else None,
+        "product_weight_kg": weight,
+        "distribution_channel": channel or None,
+        "fragility_class": fragility,
+        "suggested_tests": suggestions,
+        "laboratory_requirement": "Suggested validation tests are to be performed in an accredited laboratory using the current official procedure.",
+        "guidance_note": "Summaries are for guidance. Use the current official ISTA procedure for testing.",
+        "disclaimer": SOFTWARE_DISCLAIMER,
     }

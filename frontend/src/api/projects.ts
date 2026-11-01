@@ -166,7 +166,7 @@ export async function getSystemHealth(): Promise<{
   llm_provider: string
   llm_model: string
 }> {
-  const response = await axios.get('/health')
+  const response = await axios.get(`${(import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')}/api/health`)
   return response.data
 }
 
@@ -219,6 +219,7 @@ export interface ProjectDraft {
   name?: string | null
   brand?: string | null
   model_number?: string | null
+  product_type?: string | null
   sku?: string | null
   product_length_mm?: number | null
   product_width_mm?: number | null

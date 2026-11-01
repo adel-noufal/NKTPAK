@@ -40,6 +40,23 @@ def deterministic_extract_from_text(text: str) -> Dict[str, Any]:
     """
     data: Dict[str, Any] = {}
     cleaned = text.strip()
+    lower = cleaned.casefold()
+    type_terms = (
+        ("ceiling_fan", ("ceiling fan",)),
+        ("stand_fan", ("stand fan", "pedestal fan", "tsf-", "tsf ")),
+        ("blender", ("blender", "bl500", "mx5200")),
+        ("washing_machine", ("washing machine", "vh-720", "washer")),
+        ("refrigerator", ("refrigerator", "fridge")),
+        ("air_conditioner", ("air conditioner", "split ac", "air-conditioning")),
+        ("tv", ("television", "smart tv", " led tv")),
+        ("kettle", ("kettle",)),
+        ("microwave", ("microwave",)),
+        ("water_heater", ("water heater",)),
+    )
+    for product_type, terms in type_terms:
+        if any(term in lower for term in terms):
+            data["product_type"] = product_type
+            break
 
     # 1. Brand detection
     for b in KNOWN_BRANDS:
@@ -152,7 +169,7 @@ def merge_extractions(det_data: Dict[str, Any], llm_data: Optional[Dict[str, Any
     provenances: Dict[str, str] = {}
 
     all_keys = [
-        "name", "brand", "model_number", "sku",
+        "name", "brand", "model_number", "product_type", "sku",
         "product_length_mm", "product_width_mm", "product_height_mm",
         "net_weight_kg", "fragility",
         "carton_length_mm", "carton_width_mm", "carton_height_mm",
@@ -197,6 +214,7 @@ def merge_extractions(det_data: Dict[str, Any], llm_data: Optional[Dict[str, Any
         name=merged.get("name"),
         brand=merged.get("brand"),
         model_number=merged.get("model_number"),
+        product_type=merged.get("product_type"),
         sku=merged.get("sku"),
         product_length_mm=merged.get("product_length_mm"),
         product_width_mm=merged.get("product_width_mm"),

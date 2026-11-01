@@ -8,6 +8,7 @@ import pytest
 from app.api.v1.endpoints.projects import (
     create_project_endpoint,
     get_project_endpoint,
+    update_project_endpoint,
     list_projects_endpoint,
     fetch_product_endpoint,
     get_settings_endpoint,
@@ -34,6 +35,16 @@ def test_health_endpoint():
     assert "geometry_engine" in res
     assert "llm_status" in res
     assert "llm_provider" in res
+
+
+def test_api_health_route():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    with TestClient(app) as client:
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
 
 
 def test_empty_database_projects_list(db_session):
@@ -82,6 +93,17 @@ def test_create_project_with_all_required_fields(db_session):
 
     data = create_project_endpoint(proj_in, db=db_session)
     assert "project_id" in data
+    persisted = get_project_endpoint(data["project_id"], db=db_session)
+    assert persisted["product_data"]["packed_dimensions"] == {
+        "length": 520.0, "width": 280.0, "height": 450.0, "unit": "mm"
+    }
+    update_project_endpoint(data["project_id"], {"product_data": {"product_type": "stand_fan"}}, db=db_session)
+    after_type_patch = get_project_endpoint(data["project_id"], db=db_session)
+    assert after_type_patch["product_data"]["packed_dimensions"] == persisted["product_data"]["packed_dimensions"]
+    update_project_endpoint(data["project_id"], {"description": "Partial top-level PATCH"}, db=db_session)
+    after_partial_patch = get_project_endpoint(data["project_id"], db=db_session)
+    assert after_partial_patch["product_data"]["packed_dimensions"] == persisted["product_data"]["packed_dimensions"]
+    assert after_partial_patch["product_data"]["product_type"] == "stand_fan"
     assert data["brand"] == "Tornado"
     assert data["model_number"] == "TSF-16W"
     assert "pipeline_result" in data

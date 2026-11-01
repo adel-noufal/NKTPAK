@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import { Sidebar } from './Sidebar'
 import { useProjectStore } from '../../store/projectStore'
+import { BackendHealth } from './BackendHealth'
 
 export const Layout: React.FC = () => {
   const { language, theme } = useProjectStore()
@@ -25,7 +26,7 @@ export const Layout: React.FC = () => {
   }, [theme])
 
   return (
-    <div
+    <BackendHealth><div
       dir={language === 'ar' ? 'rtl' : 'ltr'}
       className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col font-sans"
     >
@@ -38,6 +39,6 @@ export const Layout: React.FC = () => {
           </div>
         </main>
       </div>
-    </div>
+    </div></BackendHealth>
   )
 }

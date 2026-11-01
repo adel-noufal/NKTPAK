@@ -13,8 +13,9 @@ import urllib.parse
 from typing import Any, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import Orchestrator, WorkflowError
@@ -36,6 +37,7 @@ from app.schemas.schemas import (
     AdminSettingsResponse,
 )
 from app.services import project_service
+from app.models.models import StandardsCatalogEntry
 from app.services.fetch_service import (
     search_product_pipeline,
     get_candidate_specs_by_id,
@@ -189,7 +191,7 @@ def get_project_endpoint(
         "status": proj.status,
         "language": proj.language,
         "product_data": proj.product_data,
-        "components_data": proj.components_data or [],
+        "components_data": (proj.product_data or {}).get("components", []),
         "baseline_data": proj.baseline_data,
         "planned_data": proj.planned_data,
         "optimization_config": proj.optimization_config,
@@ -209,7 +211,10 @@ def update_project_endpoint(
     db: Session = Depends(get_db),
 ):
     """Partial update of project."""
-    updated = project_service.update_project(db, project_id, update_data)
+    try:
+        updated = project_service.update_project(db, project_id, update_data)
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
     return {"project_id": updated.id, "status": "updated"}
@@ -270,7 +275,7 @@ def reoptimize_project_endpoint(
 
 
 # ─────────────────────────────────────────────
-# Dynamic Product Search / Fetch
+# Dynamic Product Search / Fetch & Catalog Index
 # ─────────────────────────────────────────────
 
 @router.post("/fetch-product", response_model=ProductSearchResponse)
@@ -281,6 +286,41 @@ def fetch_product_endpoint(req: ProductSearchRequest):
     and returns multiple candidates for side-by-side selection.
     """
     return search_product_pipeline(req)
+
+
+@router.get("/search/autocomplete")
+def search_autocomplete_endpoint(
+    q: str = Query("", description="Query for suggestions"),
+    limit: int = Query(8, ge=1, le=20)
+):
+    """Provide real-time autocomplete suggestions for models, categories, and brands."""
+    from app.services.catalog_index import autocomplete_search
+    return autocomplete_search(q, limit=limit)
+
+
+@router.get("/catalog/browse")
+def catalog_browse_endpoint(
+    category: Optional[str] = Query(None, description="Category filter"),
+    brand: Optional[str] = Query(None, description="Brand filter"),
+):
+    """Browse catalog mode: returns category breakdown and items with complete specs."""
+    from app.services.catalog_index import browse_catalog
+    return browse_catalog(category=category, brand=brand)
+
+
+class SearchProviderTestRequest(BaseModel):
+    provider: str = "serper"
+    api_key: str = ""
+
+
+@router.post("/test-search-provider")
+def test_search_provider_endpoint(req: SearchProviderTestRequest):
+    """Test connection and latency for external search providers (Serper, Tavily, Brave, Google)."""
+    from app.services.search_provider import get_search_provider
+    prov = get_search_provider(req.provider)
+    if not prov:
+        raise HTTPException(status_code=400, detail=f"Unsupported search provider '{req.provider}'.")
+    return prov.test_connection(req.api_key)
 
 
 @router.get("/brands", response_model=list[str])
@@ -378,27 +418,59 @@ def export_project_endpoint(
     if not proj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
 
+    packed_dimensions = (proj.product_data or {}).get("packed_dimensions")
+    if not isinstance(packed_dimensions, dict) or not all(
+        isinstance(packed_dimensions.get(axis), (int, float)) and packed_dimensions[axis] > 0
+        for axis in ("length", "width", "height")
+    ):
+        error_id = str(uuid.uuid4())
+        message = "The report can't be created because the product dimensions are missing. Enter them and try again."
+        logger.warning("Export rejected for incomplete product dimensions: error_id=%s project_id=%s", error_id, project_id)
+        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"message": message, "error_id": error_id})
+
+    normalized_product = dict(proj.product_data or {})
+    normalized_product.setdefault("provenance", {})
+    if not normalized_product.get("dims_mm"):
+        packed = normalized_product.get("packed_dimensions") or {}
+        normalized_product["dims_mm"] = {
+            "L": packed.get("length"),
+            "W": packed.get("width"),
+            "H": packed.get("height"),
+        }
+    dims = normalized_product.get("dims_mm") or {}
+    if normalized_product.get("volume_mm3") is None and all(
+        isinstance(dims.get(axis), (int, float)) for axis in ("L", "W", "H")
+    ):
+        normalized_product["volume_mm3"] = dims["L"] * dims["W"] * dims["H"]
+    catalog_info = list_standards_registry_endpoint(db)
+    from app.standards.registry import generate_test_plan
+    suggested_tests = generate_test_plan(
+        product_weight_kg=normalized_product.get("weight_kg"),
+        distribution_channel=normalized_product.get("shipping_mode"),
+        fragility=normalized_product.get("fragility_class", "MEDIUM"),
+    )
     project_payload = {
         "project_id": proj.id,
         "name": proj.name,
         "brand": proj.brand,
         "model_number": proj.model_number,
         "description": proj.description,
-        "normalized_product": proj.product_data,
+        "normalized_product": normalized_product,
         "baseline_data": proj.baseline_data,
         "optimization_result": proj.optimization_result,
         "standards_result": proj.standards_result,
         "active_geometry_engine": orchestrator.geom_engine.engine_name,
+        "evaluation_statement": catalog_info["evaluation_statement"],
+        "standards_catalog": catalog_info["standards"],
+        "suggested_validation_tests": suggested_tests,
     }
 
     try:
         export_res = exporter.export_report(project_payload, format_type=req.format)
     except Exception as exc:
-        logger.error("Failed to export: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Export failed: {str(exc)}",
-        )
+        error_id = str(uuid.uuid4())
+        logger.exception("Export failed: error_id=%s project_id=%s format=%s", error_id, project_id, req.format)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": "The report could not be generated due to an internal export error.", "error_id": error_id})
 
     media_types = {
         "pdf": "application/pdf",
@@ -483,6 +555,7 @@ Return ONLY valid JSON matching this schema (all fields optional, use null for u
   "name": "human-readable project name or null",
   "brand": "brand name or null",
   "model_number": "model/SKU or null",
+  "product_type": "blender|stand_fan|ceiling_fan|washing_machine|refrigerator|air_conditioner|tv|kettle|microwave|water_heater|other or null",
   "sku": "barcode/EAN or null",
   "product_length_mm": number or null,
   "product_width_mm": number or null,
@@ -726,20 +799,115 @@ def submit_recommendation_feedback_endpoint(
 
 
 # ─────────────────────────────────────────────
-# Standards Registry
+# Standards Registry & Test Plan
 # ─────────────────────────────────────────────
 
 @router.get("/standards")
-def list_standards_registry_endpoint():
-    """Retrieve all standards in the active registry."""
-    reg = get_registry()
-    standards = reg.get_all_standards()
+def list_standards_registry_endpoint(db: Session = Depends(get_db)):
+    """Return the editable, database-backed ISO and ISTA metadata catalog."""
+    records = db.query(StandardsCatalogEntry).order_by(StandardsCatalogEntry.organization, StandardsCatalogEntry.standard_identifier).all()
+    standards = [{
+        "entry_id": record.entry_id,
+        "organization": record.organization,
+        "standard_identifier": record.standard_identifier,
+        "title": record.title,
+        "title_ar": record.title_ar,
+        "scope_summary": record.scope_summary,
+        "scope_summary_ar": record.scope_summary_ar,
+        "what_it_tests": record.what_it_tests,
+        "when_it_applies": record.when_it_applies,
+        "source_url": record.source_url,
+        "version": record.version,
+        "last_verified_date": record.last_verified_date,
+        "check_type": record.check_type,
+        "applicability_rules": record.applicability_rules or {},
+        "is_user_editable": record.is_user_editable,
+    } for record in records]
+    iso_count = sum(item["organization"] == "ISO" for item in standards)
+    ista_count = sum(item["organization"] == "ISTA" for item in standards)
+    last_verified = max((item["last_verified_date"] or "" for item in standards), default="") or None
+    evaluation_statement = f"Evaluated against: ISO registry v1 ({iso_count} entries) and ISTA registry v1 ({ista_count} entries), last verified {last_verified or 'date not recorded'}. No company-specific requirements loaded."
     return {
-        "registry_version": reg._registry_version,
+        "registry_version": "1",
         "standards_count": len(standards),
-        "evaluation_statement": "Evaluated against: NxtPak ISO registry v1 (see source list). No company-specific requirements loaded.",
+        "counts": {"ISO": iso_count, "ISTA": ista_count},
+        "last_verified_date": last_verified,
+        "evaluation_statement": evaluation_statement,
         "standards": standards,
     }
+
+
+class StandardsCatalogEntryInput(BaseModel):
+    organization: str
+    standard_identifier: str
+    title: str
+    title_ar: Optional[str] = None
+    scope_summary: str
+    scope_summary_ar: Optional[str] = None
+    what_it_tests: str
+    when_it_applies: str
+    source_url: str
+    version: Optional[str] = None
+    last_verified_date: Optional[str] = None
+    check_type: str = "PHYSICAL_TEST"
+    applicability_rules: dict[str, Any] = {}
+
+
+@router.post("/standards", status_code=status.HTTP_201_CREATED)
+def create_standards_catalog_entry(req: StandardsCatalogEntryInput, db: Session = Depends(get_db)):
+    organization = req.organization.upper()
+    if organization not in {"ISO", "ISTA"}:
+        raise HTTPException(status_code=422, detail="Organization must be ISO or ISTA.")
+    entry_id = f"{organization}-{uuid.uuid4()}"
+    record = StandardsCatalogEntry(entry_id=entry_id, organization=organization, **req.model_dump(exclude={"organization"}), is_user_editable=True)
+    db.add(record)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A standard with that identifier already exists.") from exc
+    return {"entry_id": entry_id, "status": "created"}
+
+
+@router.put("/standards/{entry_id}")
+def update_standards_catalog_entry(entry_id: str, req: StandardsCatalogEntryInput, db: Session = Depends(get_db)):
+    record = db.query(StandardsCatalogEntry).filter(StandardsCatalogEntry.entry_id == entry_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Standard not found.")
+    if not record.is_user_editable:
+        raise HTTPException(status_code=403, detail="Built-in registry entries are read-only; add a project-specific entry instead.")
+    data = req.model_dump()
+    data["organization"] = data["organization"].upper()
+    for key, value in data.items():
+        setattr(record, key, value)
+    db.commit()
+    return {"entry_id": entry_id, "status": "updated"}
+
+
+@router.get("/standards/test-plan")
+@router.post("/standards/test-plan")
+def generate_standards_test_plan_endpoint(
+    weight_kg: Optional[float] = Query(None, description="Product weight in kg"),
+    channel: Optional[str] = Query(None, description="Shipping mode"),
+    fragility: str = Query("MEDIUM", description="Fragility class"),
+):
+    """Suggest applicable procedures without specifying lab test levels."""
+    from app.standards.registry import generate_test_plan
+    return generate_test_plan(product_weight_kg=weight_kg, distribution_channel=channel, fragility=fragility)
+
+
+@router.get("/projects/{project_id}/test-plan")
+def get_project_test_plan(project_id: str, db: Session = Depends(get_db)):
+    project = project_service.get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    product = project.product_data or {}
+    from app.standards.registry import generate_test_plan
+    return generate_test_plan(
+        product_weight_kg=product.get("weight_kg"),
+        distribution_channel=product.get("shipping_mode"),
+        fragility=product.get("fragility_class", "MEDIUM"),
+    )
 
 
 # ─────────────────────────────────────────────

@@ -15,7 +15,7 @@
 ## ADR-003: ISO Packaging Standards Evaluation & Strict Disclaimer
 - **Status:** Accepted
 - **Context:** Factory packaging testing requires real physical laboratory equipment (drop towers, shake tables, environmental chambers).
-- **Decision:** All physical-test standards (`PHYSICAL_TEST`) in the registry strictly return `NOT_VERIFIABLE` or `NOT_CONFIGURED` from software. They NEVER return `PASS`. Every report states: *"Evaluated against: NxtPak ISO registry v1 (see source list). No company-specific requirements loaded."*
+- **Decision:** All physical-test standards (`PHYSICAL_TEST`) in the registry strictly return `NOT_VERIFIABLE` or `NOT_CONFIGURED` from software. They NEVER return `PASS`. Reports state the database-backed ISO and ISTA registry versions, entry counts, and verification date; no company-specific requirements are implied.
 - **Consequence:** Prevents false compliance claims while providing clear test schedules and remaining steps for laboratory engineers.
 
 ## ADR-004: Parametric Deterministic Optimization Engine
@@ -35,3 +35,15 @@
 - **Context:** Manufacturer datasheets publish external carton dimensions (e.g. 575 × 310 × 490 mm for TSF-16W), but corrugated board wall thickness (e.g. 3 mm, 4.5 mm) is not published in public retail or product sheets.
 - **Decision:** Make `board_thickness_mm` optional in `BaselinePackaging`. When missing, internal cavity volume and board material volume vs baseline are reported as "Needs board thickness" rather than assuming an unverified value.
 - **Consequence:** Preserves data provenance and transparently informs the engineer which physical measurement is still required.
+
+## ADR-007: Canonical Millimetre Scene and Product Geometry
+- **Status:** Accepted
+- **Context:** Product models were centered using assumed origins while carton dimensions used a different axis convention, producing visible carton overhang and inconsistent dimension panels.
+- **Decision:** Use millimetres with Y up, X length, Z width across scene geometry. Position product meshes by measured `THREE.Box3` bounds, derive displayed dimensions and clearances from those same bounds, and select the model only from the saved product type or CAD source.
+- **Consequence:** All viewer modes can share measurable geometry and regression assertions; incomplete dimensions block rendering rather than becoming zero-valued geometry.
+
+## ADR-008: Database-Backed ISO and ISTA Guidance
+- **Status:** Accepted
+- **Context:** Project evaluation and reports used a static ISO-only message and the ISTA catalog was absent from the user interface.
+- **Decision:** Seed and serve both registries from the database, calculate project applicability from stored project inputs, and leave procedure selection empty when shipping mode is unknown. Suggested physical tests contain no invented test levels and require accredited laboratory execution.
+- **Consequence:** Project tabs and reports reflect the same catalog metadata and avoid making unsupported shipping or compliance assumptions.

@@ -52,10 +52,11 @@
 | Layout | `src/components/layout/` | Sidebar, navigation |
 | Dashboard | `src/pages/Dashboard.tsx` | Entry point, quick actions |
 | NewProject | `src/pages/NewProject.tsx` | 3-step project creation form |
-| ProjectDetail | `src/pages/ProjectDetail.tsx` | 4-tab detail: 3D, Optimization, Standards, Export |
+| ProjectDetail | `src/pages/ProjectDetail.tsx` | Project workspace: 3D, recommendations, alternatives, comparison, standards, export |
 | PackagingViewer3D | `src/components/viewer/` | React Three Fiber 3D viewer |
 | ComparisonTable | `src/components/optimization/` | Baseline vs alternatives table |
-| StandardsTable | `src/components/standards/` | ISO registry results table |
+| ProjectStandardsCatalog | `src/components/standards/` | Database-backed ISO/ISTA catalog, project statuses, and suggested tests |
+| BackendHealth | `src/components/layout/BackendHealth.tsx` | Polls backend health and communicates unavailable actions |
 | projectStore | `src/store/projectStore.ts` | Current project, language, view mode |
 
 ### Backend
@@ -66,7 +67,8 @@
 | ProductSpecsAgent | `app/agents/product_specs_agent.py` | Input validation + normalization |
 | OptimizationEngine | `app/optimization/engine.py` | Deterministic 3-alternative generator |
 | GeometryEngine | `app/geometry/engine_interface.py` | trimesh / numpy fallback |
-| StandardsRegistry | `app/standards/registry.py` | ISO registry loader and checker |
+| StandardsRegistry | `app/standards/registry.py` | ISO checks and ISTA procedure guidance |
+| Standards Catalog API | `app/api/v1/endpoints/projects.py` | Database-backed ISO/ISTA catalog and project test plans |
 | Validator | `app/validation/validator.py` | Dimensional consistency |
 | ReportGenerator | `app/reporting/report_generator.py` | PDF, HTML, JSON |
 | Exporter | `app/exports/exporter.py` | File management |
@@ -105,17 +107,26 @@ ProjectService.create_project() → store in SQLite
   ↓
 Response: OptimizationResult + StandardsEvaluationResult
   ↓
-Frontend renders 3D viewer + comparison table + standards table
+Frontend renders measured 3D views + comparisons + database-backed standards catalog
 ```
 
 ## Standards Registry Architecture
 
 ```
-data/standards/iso_registry.json          (16 ISO standards, metadata only)
+data/standards/iso_registry.json          (ISO metadata)
+data/standards/ista_registry.json         (ISTA metadata and original scope summaries)
     ↓
-StandardsRegistry.load()
+Startup seeds standards_catalog from both metadata files
     ↓
-StandardsRegistry.run_checks(product, alternative, config)
+Standards API serves catalog counts, verification dates, and source URLs
+    ├── ISO checks: PROGRAMMATIC / PHYSICAL_TEST / HUMAN_REVIEW
+    └── ISTA guidance: procedures selected only when shipment inputs support it
+    ↓
+Project tab and reports use the same database-backed evaluation statement
+```
+
+ISO checks continue through `StandardsRegistry.run_checks(product, alternative, config)`:
+```
     ├── PROGRAMMATIC checks (computed)
     │   ├── ISO 18602: volume utilization ≥ 0.60 → PASS, < 0.40 → FAIL
     │   ├── ISO 18602: material savings vs baseline (if baseline given)
@@ -124,9 +135,6 @@ StandardsRegistry.run_checks(product, alternative, config)
     │   └── ISO 3394: modular dims (PASS/FAIL if config given, else NOT_CONFIGURED)
     ├── PHYSICAL_TEST standards → NOT_VERIFIABLE (NEVER PASS)
     └── HUMAN_REVIEW standards → NEEDS_REVIEW
-    ↓
-StandardsEvaluationResult
-    └── evaluation_statement: "Evaluated against: NxtPak ISO registry v1..."
 ```
 
 ## Geometry Engine Interface
@@ -142,6 +150,8 @@ get_active_engine() → str
 
 The interface is the only entry point to geometry. Swapping the engine does not require changes elsewhere.
 
+The interactive Three.js scene uses millimetres, Y up, X length, and Z width. Cartons, product models, parts, cushions, and measurement overlays use shared geometry helpers. Product placement and displayed dimensions come from `THREE.Box3` bounds; invalid or missing dimensions block rendering rather than being substituted with zero.
+
 ## Report Structure
 
 Every generated report (PDF, HTML, JSON) contains:
@@ -151,10 +161,11 @@ Every generated report (PDF, HTML, JSON) contains:
 4. Baseline packaging (if provided) with data labels
 5. All alternatives with formulas shown
 6. Savings metrics or "NOT_CONFIGURED" if no baseline
-7. Standards evaluation (every entry, every status)
-8. Disclaimer: "Evaluated against: NxtPak ISO registry v1. No company-specific requirements loaded."
-9. "A software PASS is never proof of ISO certification or successful physical testing."
-10. Known limitations
+7. ISO evaluation and ISO/ISTA catalog metadata with applicability reasons
+8. Suggested validation tests (to be performed in an accredited lab), when shipping inputs are available
+9. Database-derived ISO/ISTA registry counts, verification date, and company-requirements statement
+10. "A software PASS is never proof of ISO certification or successful physical testing."
+11. Known limitations
 
 ## Security Notes
 

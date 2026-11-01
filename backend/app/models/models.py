@@ -84,3 +84,24 @@ class ProductCache(Base):
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StandardsCatalogEntry(Base):
+    """Editable standards metadata catalog; test procedures remain external copyrighted material."""
+    __tablename__ = "standards_catalog"
+
+    entry_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    organization: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    standard_identifier: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    title_ar: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    scope_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    scope_summary_ar: Mapped[str | None] = mapped_column(Text, nullable=True)
+    what_it_tests: Mapped[str] = mapped_column(Text, nullable=False, default="See current official procedure.")
+    when_it_applies: Mapped[str] = mapped_column(Text, nullable=False, default="Refer to the scope summary.")
+    source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_verified_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    check_type: Mapped[str] = mapped_column(String(30), nullable=False, default="PHYSICAL_TEST")
+    applicability_rules: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    is_user_editable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -55,9 +55,9 @@ def test_search_exact_match_bl500():
 
 
 def test_search_unknown_query_creates_structured_candidate():
+    """Verify that unknown queries return zero fake candidates and honest diagnostics."""
     req = ProductSearchRequest(query="CUSTOM-FAN-99", brand="Tornado")
     res = search_product_pipeline(req)
-    assert len(res.candidates) >= 1
-    cand = res.candidates[0]
-    assert cand.model == "CUSTOM-FAN-99"
-    assert cand.brand == "Tornado"
+    assert len(res.candidates) == 0
+    assert "No products found" in res.status_message
+    assert "enter specifications manually" in res.status_message

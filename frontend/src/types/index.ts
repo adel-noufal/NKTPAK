@@ -10,6 +10,9 @@ export enum FragilityClass {
   VERY_HIGH = 'VERY_HIGH',
 }
 
+export type ProductType = 'blender' | 'stand_fan' | 'ceiling_fan' | 'washing_machine' | 'refrigerator' | 'air_conditioner' | 'tv' | 'kettle' | 'microwave' | 'water_heater' | 'other'
+export const PRODUCT_TYPES: ProductType[] = ['blender', 'stand_fan', 'ceiling_fan', 'washing_machine', 'refrigerator', 'air_conditioner', 'tv', 'kettle', 'microwave', 'water_heater', 'other']
+
 export enum CheckType {
   PROGRAMMATIC = 'PROGRAMMATIC',
   PHYSICAL_TEST = 'PHYSICAL_TEST',
@@ -77,6 +80,9 @@ export interface ProductInput {
   model: string
   sku?: string | null
   category?: string | null
+  product_type: ProductType
+  product_type_provenance?: Provenance
+  shipping_mode?: 'courier_parcel' | 'ltl_pallet' | 'full_truck' | 'container' | 'ecommerce_marketplace' | null
   weight_kg: number
   fragility_class: FragilityClass
   packed_dimensions: DimensionsInput

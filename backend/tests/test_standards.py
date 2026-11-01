@@ -17,15 +17,54 @@ def test_registry_loads_all_standards():
     reg = StandardsRegistry()
     reg.load()
     standards = reg.get_all_standards()
-    assert len(standards) == 16, f"Expected 16 ISO standards, got {len(standards)}"
+    assert len(standards) >= 27, f"Expected at least 27 standards (16 ISO + 11 ISTA), got {len(standards)}"
 
     entry_ids = {s["entry_id"] for s in standards}
-    expected_ids = {
+    expected_iso_ids = {
         "ISO-18602", "ISO-18601", "ISO-4180", "ISO-2233", "ISO-2206",
         "ISO-2248", "ISO-2244", "ISO-8768", "ISO-2234", "ISO-12048",
         "ISO-2247", "ISO-8318", "ISO-13355", "ISO-2875", "ISO-3676", "ISO-3394"
     }
-    assert expected_ids.issubset(entry_ids)
+    assert expected_iso_ids.issubset(entry_ids)
+
+    expected_ista_ids = {
+        "ISTA-1A", "ISTA-1B", "ISTA-1C", "ISTA-1G", "ISTA-1H", "ISTA-2A", "ISTA-2B",
+        "ISTA-3A", "ISTA-3B", "ISTA-3E", "ISTA-3F", "ISTA-3H", "ISTA-6-AMAZON-SIOC", "ISTA-6-AMAZON-OVERBOX"
+    }
+    assert expected_ista_ids.issubset(entry_ids)
+
+
+def test_generate_ista_test_plan_without_inventing_lab_parameters():
+    from app.standards.registry import generate_test_plan
+    plan_parcel = generate_test_plan(product_weight_kg=3.0, distribution_channel="courier_parcel", fragility="HIGH")
+    assert plan_parcel["primary_standard"] == "ISTA 3A"
+    assert {item["standard_identifier"] for item in plan_parcel["suggested_tests"]} >= {"ISTA 3A", "ISTA 1A", "ISTA 2A"}
+    assert "damage tolerance" in plan_parcel["suggested_tests"][0]["reason"]
+    assert all("drop_height" not in str(item) and "duration" not in str(item) for item in plan_parcel["suggested_tests"])
+
+    plan_ecom = generate_test_plan(product_weight_kg=6.5, distribution_channel="ecommerce_marketplace", fragility="MEDIUM")
+    assert plan_ecom["primary_standard"] == "ISTA 6-Amazon.com-SIOC"
+
+    plan_pallet = generate_test_plan(product_weight_kg=25.0, distribution_channel="ltl_pallet", is_palletized=True)
+    assert plan_pallet["primary_standard"] == "ISTA 3B"
+    assert {item["standard_identifier"] for item in plan_pallet["suggested_tests"]} >= {"ISTA 3E", "ISTA 3B", "ISTA 3F"}
+
+    unspecified = generate_test_plan(product_weight_kg=3.0, distribution_channel=None)
+    assert unspecified["primary_standard"] is None
+    assert unspecified["suggested_tests"] == []
+
+
+def test_standards_api_returns_database_seeded_iso_and_ista_entries():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as client:
+        response = client.get("/api/v1/standards")
+        assert response.status_code == 200
+        payload = response.json()
+        ids = {item["standard_identifier"] for item in payload["standards"]}
+        assert {"ISTA 1A", "ISTA 1B", "ISTA 1C", "ISTA 1G", "ISTA 1H", "ISTA 2A", "ISTA 2B", "ISTA 3A", "ISTA 3B", "ISTA 3E", "ISTA 3F", "ISTA 3H", "ISTA 6-Amazon.com-SIOC"} <= ids
+        assert payload["counts"]["ISO"] == 16
+        assert payload["counts"]["ISTA"] >= 13
 
 
 def test_physical_test_standards_never_pass():

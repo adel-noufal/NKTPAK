@@ -1,10 +1,16 @@
-import React, { useRef, useState, useMemo } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, Center, Html } from '@react-three/drei'
+import { OrbitControls, Grid, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useProjectStore } from '../../store/projectStore'
-import type { PackagingAlternative, ComponentSpec } from '../../types'
+import type { PackagingAlternative, ComponentSpec, FragilityClass } from '../../types'
 import { ParametricProduct3D } from './ParametricProduct3D'
+import { boxSizeLWH, createBoxGeometryLWH, fitObjectToBounds, measureClearance } from './sceneGeometry'
+import { resolveProductModel, type ProductModelProject } from './productModel'
+
+type BoxRecord = { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number }; size: { length: number; width: number; height: number } }
+type SceneBoxes = { carton: THREE.Box3 | null; innerCarton: THREE.Box3 | null; product: THREE.Box3 | null; productObjectName: string | null }
+declare global { interface Window { __NEXTPAK_3D_DEBUG__?: Record<string, unknown> } }
 
 interface PackagingViewer3DProps {
   alternative?: PackagingAlternative | null
@@ -13,7 +19,11 @@ interface PackagingViewer3DProps {
   productName?: string
   components?: ComponentSpec[]
   images?: string[]
-  provenanceBadge?: string
+  modelProject: ProductModelProject
+  fragilityClass: FragilityClass
+  requiredClearanceMm: number
+  onEditProduct?: () => void
+  onAddParts?: () => void
 }
 
 const BoxMesh: React.FC<{
@@ -22,11 +32,22 @@ const BoxMesh: React.FC<{
   opacity?: number
   wireframe?: boolean
   edgeColor?: string
-}> = ({ dimensions, color, opacity = 1, wireframe = false, edgeColor = '#ffffff' }) => {
+  visible?: boolean
+  onMeasure?: (box: THREE.Box3) => void
+}> = ({ dimensions, color, opacity = 1, wireframe = false, edgeColor = '#ffffff', visible = true, onMeasure }) => {
+  const ref = useRef<THREE.Group>(null)
+  const [length, height, width] = dimensions
+  const boxDims = useMemo(() => ({ length, height, width }), [length, height, width])
+  const geometry = useMemo(() => createBoxGeometryLWH(boxDims), [boxDims])
+  useLayoutEffect(() => {
+    if (!ref.current || !onMeasure) return
+    ref.current.updateWorldMatrix(true, true)
+    onMeasure(new THREE.Box3().setFromObject(ref.current).clone())
+  }, [geometry, onMeasure])
   return (
-    <group>
+    <group ref={ref} visible={visible}>
       <mesh>
-        <boxGeometry args={dimensions} />
+        <primitive object={geometry} attach="geometry" />
         <meshStandardMaterial
           color={color}
           transparent={opacity < 1}
@@ -37,11 +58,48 @@ const BoxMesh: React.FC<{
         />
       </mesh>
       <lineSegments>
-        <edgesGeometry args={[new THREE.BoxGeometry(...dimensions)]} />
+        <edgesGeometry args={[geometry]} />
         <lineBasicMaterial color={edgeColor} opacity={0.35} transparent />
       </lineSegments>
     </group>
   )
+}
+
+const MeasuredProduct: React.FC<{
+  dimensions: { length: number; width: number; height: number }
+  resolvedModel: ReturnType<typeof resolveProductModel>['model']
+  viewMode: 'assembled' | 'packed_parts' | 'exploded'
+  explodedFactor: number
+  components: ComponentSpec[]
+  wireframe: boolean
+  visible: boolean
+  onMeasure: (box: THREE.Box3, objectName: string) => void
+  onSelectComponent?: (comp: ComponentSpec) => void
+  selectedComponentName?: string | null
+}> = ({ dimensions, resolvedModel, viewMode, explodedFactor, components, wireframe, visible, onMeasure, onSelectComponent, selectedComponentName }) => {
+  const ref = useRef<THREE.Group>(null)
+  const componentsKey = components.map((component) => `${component.name}:${component.length_mm}:${component.width_mm}:${component.height_mm}`).join('|')
+  useLayoutEffect(() => {
+    const object = ref.current
+    if (!object) return
+    object.scale.setScalar(1000)
+    object.updateWorldMatrix(true, true)
+    const box = fitObjectToBounds(object, new THREE.Vector3(dimensions.length, dimensions.height, dimensions.width))
+    onMeasure(box.clone(), object.name)
+  }, [dimensions.length, dimensions.width, dimensions.height, resolvedModel, viewMode, explodedFactor, componentsKey, onMeasure])
+  const effectiveView = viewMode === 'packed_parts' && components.length === 0 ? 'assembled' : viewMode
+  return <group ref={ref} visible={visible} name={`product-model-${resolvedModel}`}>
+    <ParametricProduct3D
+      resolvedModel={resolvedModel}
+      dimensions={dimensions}
+      viewMode={effectiveView}
+      explodedFactor={explodedFactor}
+      wireframe={wireframe}
+      components={components}
+      onSelectComponent={onSelectComponent}
+      selectedComponentName={selectedComponentName}
+    />
+  </group>
 }
 
 export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
@@ -51,7 +109,11 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   productName,
   components = [],
   images = [],
-  provenanceBadge = 'Approximate model from entered dimensions',
+  modelProject,
+  fragilityClass,
+  requiredClearanceMm,
+  onEditProduct = () => undefined,
+  onAddParts = () => undefined,
 }) => {
   const { selectedView, setSelectedView } = useProjectStore()
   const [wireframeMode, setWireframeMode] = useState(false)
@@ -62,18 +124,26 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
   const [selectedComponent, setSelectedComponent] = useState<ComponentSpec | null>(null)
   const [cameraView, setCameraView] = useState<'iso' | 'front' | 'top'>('iso')
+  const [sceneBoxes, setSceneBoxes] = useState<SceneBoxes>({ carton: null, innerCarton: null, product: null, productObjectName: null })
+  const sceneRootRef = useRef<THREE.Group>(null)
   const controlsRef = useRef<any>(null)
 
-  // Scale down millimeters to meters for Three.js (1000mm = 1 unit)
-  const scale = 0.001
+  // Every scene object uses millimetres: +X length, +Y height, +Z width.
+  const scale = 1
 
-  const pLength = Math.round(productDims?.length || 460)
-  const pWidth = Math.round(productDims?.width || 460)
-  const pHeight = Math.round(productDims?.height || 1250)
+  const pLength = productDims?.length ?? Number.NaN
+  const pWidth = productDims?.width ?? Number.NaN
+  const pHeight = productDims?.height ?? Number.NaN
 
-  const outerL_mm = Math.round(alternative?.outer_length_mm || pLength + 60)
-  const outerW_mm = Math.round(alternative?.outer_width_mm || pWidth + 60)
-  const outerH_mm = Math.round(alternative?.outer_height_mm || pHeight + 60)
+  const outerL_mm = alternative?.outer_length_mm ?? Number.NaN
+  const outerW_mm = alternative?.outer_width_mm ?? Number.NaN
+  const outerH_mm = alternative?.outer_height_mm ?? Number.NaN
+
+  const validDimensions = (dims: { length: number | null; width: number | null; height: number | null }) =>
+    [dims.length, dims.width, dims.height].every((value) => typeof value === 'number' && Number.isFinite(value) && value > 0)
+  const hasProductDimensions = validDimensions({ length: pLength, width: pWidth, height: pHeight })
+  const hasCartonDimensions = validDimensions({ length: outerL_mm, width: outerW_mm, height: outerH_mm })
+  const hasRenderableDimensions = hasProductDimensions && hasCartonDimensions
 
   const outerL = outerL_mm * scale
   const outerW = outerW_mm * scale
@@ -84,12 +154,51 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   const prodH = pHeight * scale
 
   // Compute exact cushion/clearance strictly from geometry (never contradictory)
-  const clearanceL = Math.max(0, Math.round((outerL_mm - pLength) / 2))
-  const clearanceW = Math.max(0, Math.round((outerW_mm - pWidth) / 2))
-  const clearanceH = Math.max(0, Math.round((outerH_mm - pHeight) / 2))
+  const clearanceL = Math.max(0, (outerL_mm - pLength) / 2)
+  const clearanceW = Math.max(0, (outerW_mm - pWidth) / 2)
+  const clearanceH = Math.max(0, (outerH_mm - pHeight) / 2)
 
-  const insertTh = (alternative?.insert_thickness_mm || clearanceL) * scale
+  const insertTh = (alternative?.insert_thickness_mm ?? 0) * scale
   const hasInserts = insertTh > 0
+  const productType = modelProject.product_type || 'other'
+  const modelResolution = resolveProductModel(modelProject)
+  const recordBox = useCallback((key: 'carton' | 'innerCarton' | 'product', box: THREE.Box3, objectName?: string) => {
+    setSceneBoxes((current) => ({ ...current, [key]: box.clone(), ...(key === 'product' ? { productObjectName: objectName || null } : {}) }))
+  }, [])
+  const recordCarton = useCallback((box: THREE.Box3) => recordBox('carton', box), [recordBox])
+  const recordInner = useCallback((box: THREE.Box3) => recordBox('innerCarton', box), [recordBox])
+  const recordProduct = useCallback((box: THREE.Box3, objectName: string) => recordBox('product', box, objectName), [recordBox])
+  const measuredCarton = sceneBoxes.carton ? boxSizeLWH(sceneBoxes.carton) : { length: outerL_mm, width: outerW_mm, height: outerH_mm }
+  const measuredProduct = sceneBoxes.product ? boxSizeLWH(sceneBoxes.product) : { length: pLength, width: pWidth, height: pHeight }
+  const measuredClearance = sceneBoxes.innerCarton && sceneBoxes.product
+    ? measureClearance(sceneBoxes.innerCarton, sceneBoxes.product)
+    : { length: [clearanceL, clearanceL], width: [clearanceW, clearanceW], height: [clearanceH, clearanceH] }
+  const clearanceMeetsTarget = hasRenderableDimensions && !!sceneBoxes.product && !!sceneBoxes.innerCarton && Object.values(measuredClearance).flat().every((gap) => gap >= requiredClearanceMm)
+  const serializeBox = (box: THREE.Box3 | null): BoxRecord | null => box ? ({
+    min: box.min.toArray().slice(0, 3).reduce((acc, value, axis) => ({ ...acc, [['x', 'y', 'z'][axis]]: value }), {} as BoxRecord['min']),
+    max: box.max.toArray().slice(0, 3).reduce((acc, value, axis) => ({ ...acc, [['x', 'y', 'z'][axis]]: value }), {} as BoxRecord['max']),
+    size: boxSizeLWH(box),
+  }) : null
+  useEffect(() => {
+    const sceneObjectNames: string[] = []
+    sceneRootRef.current?.traverse((object) => {
+      if (object.name) sceneObjectNames.push(object.name)
+      else if ((object as THREE.Mesh).geometry) sceneObjectNames.push(object.type)
+    })
+    window.__NEXTPAK_3D_DEBUG__ = {
+      view: selectedView === 'product' && productSubView === 'packed_parts' ? 'packed_parts' : selectedView,
+      candidateId: alternative?.alternative_id ?? null,
+      productType,
+      resolvedModel: modelResolution,
+      productObjectName: sceneBoxes.productObjectName,
+      sceneObjectNames,
+      separation: explodedFactor,
+      cartonBox: serializeBox(sceneBoxes.carton),
+      innerCartonBox: serializeBox(sceneBoxes.innerCarton),
+      productBox: serializeBox(sceneBoxes.product),
+      clearanceMm: measuredClearance,
+    }
+  }, [selectedView, productSubView, alternative?.alternative_id, productType, modelResolution, explodedFactor, sceneBoxes, measuredClearance])
 
   const getProxiedUrl = (url: string) => {
     if (!url) return ''
@@ -140,13 +249,13 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
     setCameraView(view)
     if (controlsRef.current) {
       if (view === 'iso') {
-        controlsRef.current.object.position.set(1.4, 1.2, 1.6)
+        controlsRef.current.object.position.set(outerL * 1.7, outerH * 1.4, outerW * 1.8)
       } else if (view === 'front') {
-        controlsRef.current.object.position.set(0, 0.4, 2.2)
+        controlsRef.current.object.position.set(0, 0, outerW * 2.5)
       } else if (view === 'top') {
-        controlsRef.current.object.position.set(0, 2.5, 0.01)
+        controlsRef.current.object.position.set(0, outerH * 2.5, 1)
       }
-      controlsRef.current.target.set(0, outerH / 2, 0)
+      controlsRef.current.target.set(0, 0, 0)
       controlsRef.current.update()
     }
   }
@@ -154,6 +263,19 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   // Savings and Material delta
   const matSavedPct = alternative?.savings?.material_saved_pct ?? 0
   const isNegativeSavings = matSavedPct < 0
+
+  if (!hasProductDimensions || !hasCartonDimensions) {
+    const message = !hasProductDimensions
+      ? 'Product dimensions are missing — enter them'
+      : 'Carton dimensions are missing — enter them'
+    return (
+      <div className="min-h-[360px] rounded-xl border border-amber-300 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/30">
+        <h3 className="text-base font-semibold text-amber-950 dark:text-amber-100">3D model unavailable</h3>
+        <p role="alert" data-testid="missing-dimensions-message" className="mt-2 text-sm text-amber-900 dark:text-amber-200">{message}</p>
+        <button type="button" onClick={onEditProduct} className="mt-4 rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600">Edit product dimensions</button>
+      </div>
+    )
+  }
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-stone-200 dark:border-stone-800 shadow-sm flex flex-col bg-stone-900">
@@ -194,7 +316,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => { setSelectedView('exploded'); setExplodedFactor(0.5) }}
+          onClick={() => { setSelectedView('exploded'); setExplodedFactor(0) }}
           className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
             selectedView === 'exploded'
               ? 'bg-emerald-600 text-white font-semibold shadow-sm'
@@ -302,20 +424,20 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
         <div className="pointer-events-auto bg-stone-800/95 dark:bg-stone-900/95 backdrop-blur-md px-3 py-2.5 rounded-lg border border-stone-700/60 text-xs text-stone-300 shadow max-w-[260px]">
           <div className="font-semibold text-stone-100 flex items-center justify-between border-b border-stone-700 pb-1 mb-1.5">
             <span className="text-[11px]">Physical Dimensions</span>
-            <span className="text-[10px] text-emerald-400 font-mono">Verified Geometry</span>
+            <span data-testid="geometry-source" className="text-[10px] text-emerald-400 font-mono">{modelResolution.label}</span>
           </div>
           <div className="font-mono text-[11px] space-y-1">
             <div className="flex justify-between items-center gap-3">
               <span className="text-amber-400">Carton:</span>
-              <span className="text-stone-100 font-semibold" title={`Exact: ${outerL_mm} × ${outerW_mm} × ${outerH_mm} mm`}>
-                {outerL_mm} × {outerW_mm} × {outerH_mm} mm
+              <span data-testid="carton-dimensions" className="text-stone-100 font-semibold" title="Measured from carton Box3">
+                {measuredCarton.length.toFixed(1)} × {measuredCarton.width.toFixed(1)} × {measuredCarton.height.toFixed(1)} mm
               </span>
             </div>
             {productDims ? (
               <div className="flex justify-between items-center gap-3">
                 <span className="text-blue-400">Product:</span>
-                <span className="text-stone-300" title={`Exact: ${pLength} × ${pWidth} × ${pHeight} mm`}>
-                  {pLength} × {pWidth} × {pHeight} mm
+                <span data-testid="product-dimensions" className="text-stone-300" title="Measured from product Box3">
+                  {measuredProduct.length.toFixed(1)} × {measuredProduct.width.toFixed(1)} × {measuredProduct.height.toFixed(1)} mm
                 </span>
               </div>
             ) : (
@@ -327,15 +449,18 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
             {/* Clearance strictly computed from geometry */}
             <div className="flex justify-between items-center gap-2 text-emerald-400 text-[10px] pt-0.5 border-t border-stone-700/60">
               <span>Cushion / side:</span>
-              <span className="font-mono">
-                L: {clearanceL} / W: {clearanceW} / H: {clearanceH} mm
+              <span data-testid="clearance-dimensions" className="font-mono">
+                L: {measuredClearance.length.map((n) => n.toFixed(1)).join(' / ')} · W: {measuredClearance.width.map((n) => n.toFixed(1)).join(' / ')} · H: {measuredClearance.height.map((n) => n.toFixed(1)).join(' / ')} mm
               </span>
+            </div>
+            <div data-testid="clearance-target-status" className={`text-[10px] ${clearanceMeetsTarget ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {clearanceMeetsTarget ? 'Clearance target met' : sceneBoxes.product && sceneBoxes.innerCarton ? `Below ${fragilityClass} clearance target (${requiredClearanceMm} mm)` : 'Clearance not measured'}
             </div>
 
             {/* Negative savings honest banner */}
             {isNegativeSavings && (
               <div className="mt-1 pt-1 border-t border-amber-500/30 text-[10px] text-amber-300 font-sans leading-tight">
-                <span className="font-bold">+{Math.abs(matSavedPct).toFixed(1)}% more material:</span> required 25mm clearance for Medium fragility; current carton leaves inadequate clearance.
+                <span className="font-bold">{fragilityClass} protection target: {requiredClearanceMm} mm per side.</span> Measured gaps are shown above.
               </div>
             )}
           </div>
@@ -399,7 +524,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
         {/* 3D Canvas */}
         <div className="flex-1 h-full relative">
           <Canvas
-            camera={{ position: [1.4, 1.2, 1.6], fov: 45 }}
+            camera={{ position: [outerL * 1.7, outerH * 1.4, outerW * 1.8], fov: 45 }}
             className="w-full h-full cursor-grab active:cursor-grabbing"
           >
             <ambientLight intensity={0.9} />
@@ -407,7 +532,10 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
             <directionalLight position={[-6, -4, -6]} intensity={0.5} />
             <directionalLight position={[0, 5, -8]} intensity={0.4} />
 
-            <Center top>
+            <group ref={sceneRootRef} name="millimetre-scene-x-length-y-height-z-width">
+              <BoxMesh dimensions={[outerL, outerH, outerW]} color="#d97706" opacity={0} visible={false} onMeasure={recordCarton} />
+              <BoxMesh dimensions={[alternative?.inner_length_mm ?? Math.max(0, outerL - 2 * (alternative?.board_thickness_mm ?? 0)), alternative?.inner_height_mm ?? Math.max(0, outerH - 2 * (alternative?.board_thickness_mm ?? 0)), alternative?.inner_width_mm ?? Math.max(0, outerW - 2 * (alternative?.board_thickness_mm ?? 0))]} color="#d97706" opacity={0} visible={false} onMeasure={recordInner} />
+              {selectedView === 'box' && productDims && <MeasuredProduct dimensions={{ length: pLength, width: pWidth, height: pHeight }} resolvedModel={modelResolution.model} viewMode="assembled" explodedFactor={0} components={components} wireframe={wireframeMode} visible={false} onMeasure={recordProduct} />}
               {/* View 1: Box (Outside) */}
               {selectedView === 'box' && (
                 <group>
@@ -418,12 +546,12 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
                     wireframe={wireframeMode}
                   />
                   {/* Flap Tape Line */}
-                  <mesh position={[0, outerH / 2 + 0.002, 0]}>
-                    <planeGeometry args={[0.04, outerW]} />
+                  <mesh position={[0, outerH / 2 + 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <planeGeometry args={[40, outerW]} />
                     <meshStandardMaterial color="#92400e" roughness={0.3} />
                   </mesh>
                   <Html
-                    position={[0, outerH / 2 + 0.08, 0]}
+                    position={[0, outerH / 2 + 80, 0]}
                     center
                     style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}
                   >
@@ -455,13 +583,15 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
                   {/* Parametric Realistic Product Inside Carton */}
                   {productDims && (
                     <group>
-                      <ParametricProduct3D
-                        category={category}
-                        productName={productName}
+                      <MeasuredProduct
+                        resolvedModel={modelResolution.model}
                         dimensions={{ length: pLength, width: pWidth, height: pHeight }}
                         viewMode="assembled"
+                        explodedFactor={0}
                         wireframe={wireframeMode}
                         components={components}
+                        visible
+                        onMeasure={recordProduct}
                       />
 
                       {/* Optional Bounding Box Overlay */}
@@ -492,16 +622,25 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
               {/* View 3: Product Alone (Assembled or Packed Parts) */}
               {selectedView === 'product' && (
                 <group>
-                  <ParametricProduct3D
-                    category={category}
-                    productName={productName}
+                  {productSubView === 'packed_parts' && components.length === 0 ? (
+                    <Html center>
+                      <div className="w-64 rounded-lg border border-amber-300 bg-stone-950/95 p-4 text-center text-white shadow-xl">
+                        <p className="text-xs">No component list for this product. Add parts, or use Assembled.</p>
+                        <button type="button" onClick={onAddParts} className="mt-3 rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold">Add parts</button>
+                      </div>
+                    </Html>
+                  ) : <MeasuredProduct
+                    resolvedModel={modelResolution.model}
                     dimensions={{ length: pLength, width: pWidth, height: pHeight }}
                     viewMode={productSubView}
+                    explodedFactor={0}
                     wireframe={wireframeMode}
                     components={components}
                     selectedComponentName={selectedComponent?.name}
-                    onSelectComponent={(comp) => setSelectedComponent(comp)}
-                  />
+                    onSelectComponent={setSelectedComponent}
+                    visible
+                    onMeasure={recordProduct}
+                  />}
 
                   {/* Optional Bounding Box Wireframe Overlay */}
                   {showBoundingBox && (
@@ -517,7 +656,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
                   {/* Dimension Label as HTML */}
                   {productDims && (
                     <Html
-                      position={[0, prodH + 0.08, 0]}
+                      position={[0, prodH / 2 + 60, 0]}
                       center
                       style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}
                     >
@@ -539,20 +678,21 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
               {/* View 4: Exploded View with Sequence Slider */}
               {selectedView === 'exploded' && (
                 <group>
-                  <ParametricProduct3D
-                    category={category}
-                    productName={productName}
+                  <MeasuredProduct
+                    resolvedModel={modelResolution.model}
                     dimensions={{ length: pLength, width: pWidth, height: pHeight }}
                     viewMode="assembled"
                     explodedFactor={explodedFactor}
                     wireframe={wireframeMode}
                     components={components}
+                    visible
+                    onMeasure={recordProduct}
                   />
 
                   {/* Exploded Carton Shell */}
-                  <group position={[0, -explodedFactor * 0.4, 0]}>
+                  <group position={[0, -explodedFactor * outerH * 0.5, 0]}>
                     <BoxMesh
-                      dimensions={[outerL, outerH * 0.3, outerW]}
+                      dimensions={[outerL, outerH, outerW]}
                       color="#d97706"
                       opacity={0.35}
                       wireframe={wireframeMode}
@@ -560,19 +700,19 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
                   </group>
                 </group>
               )}
-            </Center>
+            </group>
 
             {/* Studio Floor Grid */}
             <Grid
-              position={[0, -0.01, 0]}
-              args={[4, 4]}
-              cellSize={0.2}
+              position={[0, -outerH / 2 - 10, 0]}
+              args={[Math.max(outerL, outerW) * 3, Math.max(outerL, outerW) * 3]}
+              cellSize={100}
               cellThickness={0.8}
               cellColor="#334155"
-              sectionSize={1.0}
+              sectionSize={500}
               sectionThickness={1.2}
               sectionColor="#475569"
-              fadeDistance={3.5}
+              fadeDistance={Math.max(outerL, outerW, outerH) * 3}
               fadeStrength={1}
             />
 
@@ -582,17 +722,25 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
               enableDamping
               dampingFactor={0.05}
               minDistance={0.4}
-              maxDistance={5}
+              maxDistance={Math.max(outerL, outerW, outerH) * 8}
             />
           </Canvas>
         </div>
       </div>
 
+      {selectedView === 'product' && productSubView === 'packed_parts' && components.length > 0 && (
+        <div data-testid="packed-parts-legend" className="absolute bottom-12 start-3 z-10 max-h-44 w-64 overflow-y-auto rounded-lg border border-stone-700 bg-stone-950/95 p-2 text-xs text-white shadow-xl">
+          <p className="mb-1 font-semibold">Parts in this product</p>
+          {components.map((component) => <button key={component.name} type="button" onClick={() => setSelectedComponent(component)} className={`block w-full truncate rounded px-2 py-1 text-start ${selectedComponent?.name === component.name ? 'bg-blue-800' : 'hover:bg-stone-800'}`}>{component.name}</button>)}
+          {selectedComponent && <p data-testid="selected-part-details" className="mt-2 border-t border-stone-700 pt-2 text-[10px]">{selectedComponent.name} · {selectedComponent.length_mm} × {selectedComponent.width_mm} × {selectedComponent.height_mm} mm · {selectedComponent.weight_kg} kg</p>}
+        </div>
+      )}
+
       {/* Bottom Provenance and Hint Bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-stone-950/90 border-t border-stone-800 text-[11px] text-stone-400">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-          <span className="font-medium text-stone-300">{provenanceBadge}</span>
+          <span className="font-medium text-stone-300">{modelResolution.label}</span>
           <span className="text-stone-600">·</span>
           <span>Upload CAD (STEP/STL) for exact geometry</span>
         </div>

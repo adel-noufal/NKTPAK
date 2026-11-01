@@ -1,0 +1,34 @@
+NxtPak Round 5 verification results
+Date: 2026-11-01
+
+Backend
+  Command: cd backend; rtk proxy pytest tests/ -q
+  Result: 56 passed, 1 warning, 24.22s
+  Warning: Starlette HTTP_422_UNPROCESSABLE_ENTITY deprecation in the incomplete-export regression test.
+
+Frontend type check
+  Command: cd frontend; rtk proxy pnpm lint
+  Result: exit 0
+
+Frontend unit tests
+  Command: cd frontend; rtk proxy pnpm test
+  Result: 2 test files passed; 13 tests passed.
+
+Production build
+  Command: cd frontend; rtk proxy pnpm build
+  Result: Vite build passed. Vite reports the generated JavaScript chunk exceeds 500 kB.
+
+Playwright E2E
+  Command: cd frontend; rtk proxy pnpm test:e2e
+  Result: 5 passed (56.9s)
+  Covered: Blender + stand fan, two carton candidates, Box / Inside / Product Alone / Exploded at 0% / Packed Parts; missing dimensions; ISO/ISTA filters; repaired saved Blender project.
+
+Live repaired-project export requests
+  Project: badc4582-a74a-441a-819e-bbb3e49c8601
+  PDF: 200 application/pdf, 5601 bytes; opened and rendered to PNG (2 pages).
+  HTML: 200 text/html; charset=utf-8, 28981 bytes; opened standalone in Chromium.
+  DXF: 200 application/dxf, 1562 bytes; 18 LINE entities parsed, CUT/CREASE layers present, extents 1253 x 819 mm; rendered preview inspected.
+  JSON: 200 application/json, 91515 bytes; json.loads succeeded; rendered JSON summary preview inspected.
+
+CAD viewer limitation
+  No CAD viewer is installed in the environment. DXF structure, layers, dimensions, and rendered preview were checked, but opening it in a CAD application was not verified.

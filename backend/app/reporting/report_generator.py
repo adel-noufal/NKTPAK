@@ -62,8 +62,8 @@ HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
       <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">Project: <strong>{{ project_name }}</strong> | Generated: {{ generated_at }}</p>
     </div>
     <div style="text-align: right; font-size: 13px; color: #64748b;">
-      NXTPAK Hackathon (Egypt)<br>
-      El Araby Group Challenge
+      NxtPak Packaging Systems<br>
+      El Araby Group Industrial Packaging
     </div>
   </div>
 
@@ -73,7 +73,7 @@ HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
       <tr><th>Property</th><th>Value</th><th>Data Provenance / Label</th></tr>
       <tr><td>Product Name</td><td>{{ product.name }}</td><td>{{ product.provenance.data_label or 'USER_ENTERED' }}</td></tr>
       <tr><td>Dimensions (L × W × H)</td><td>{{ product.dims_mm.L }} × {{ product.dims_mm.W }} × {{ product.dims_mm.H }} mm</td><td>{{ product.provenance.data_label or 'USER_ENTERED' }}</td></tr>
-      <tr><td>Product Volume</td><td>{{ product.volume_mm3 | round(1) }} mm³</td><td>CALCULATED</td></tr>
+      <tr><td>Product Volume</td><td>{{ ((product.dims_mm.L or 0) * (product.dims_mm.W or 0) * (product.dims_mm.H or 0)) | round(1) }} mm³</td><td>CALCULATED</td></tr>
       <tr><td>Packed Weight</td><td>{{ product.weight_kg }} kg</td><td>USER_ENTERED</td></tr>
       <tr><td>Fragility Class</td><td>{{ product.fragility_class }}</td><td>USER_ENTERED (Engineering selection)</td></tr>
     </table>
@@ -145,7 +145,7 @@ HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <div class="section">
-    <h2>4. ISO Standards Registry Evaluation</h2>
+    <h2>4. ISO + ISTA Standards Registry Evaluation</h2>
     <p style="font-size: 13px; color: #475569; margin-top: 4px;">
       <em>{{ evaluation_statement }}</em>
     </p>
@@ -194,6 +194,18 @@ HTML_REPORT_TEMPLATE = """<!DOCTYPE html>
     </table>
   </div>
 
+  <div class="section">
+    <h2>Suggested validation tests (to be performed in an accredited lab)</h2>
+    <p><em>{{ suggested_validation_tests.guidance_note or 'Summaries are for guidance. Use the current official ISTA procedure for testing.' }}</em></p>
+    <ul>
+      {% for item in suggested_validation_tests.suggested_tests or [] %}
+      <li><strong>{{ item.standard_identifier }}</strong>: {{ item.reason }}</li>
+      {% else %}
+      <li>No procedure suggested: enter product weight and shipping mode.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
   <div class="disclaimer-box">
     <strong>Mandatory Engineering Disclaimer:</strong><br>
     {{ disclaimer }}
@@ -218,17 +230,26 @@ class ReportGenerator:
     def generate_html(self, project_data: dict[str, Any], file_name: Optional[str] = None) -> str:
         """Render self-contained HTML report."""
         template = Template(HTML_REPORT_TEMPLATE)
+        product = dict(project_data.get("normalized_product") or {})
+        product.setdefault("provenance", {})
+        dims = product.get("dims_mm") or {}
+        product["dims_mm"] = {axis: dims.get(axis) for axis in ("L", "W", "H")}
+        if product.get("volume_mm3") is None and all(
+            isinstance(dims.get(axis), (int, float)) for axis in ("L", "W", "H")
+        ):
+            product["volume_mm3"] = dims["L"] * dims["W"] * dims["H"]
         fname = file_name or f"nxtpak_report_{project_data.get('project_id', 'draft')}.html"
         file_path = self.output_dir / fname
 
         rendered = template.render(
             project_name=project_data.get("name", "NxtPak Project"),
             generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-            product=project_data.get("normalized_product", {}),
+            product=product,
             baseline=project_data.get("baseline_data"),
             alternatives=project_data.get("optimization_result", {}).get("alternatives", []),
             standards_results=project_data.get("standards_result", {}).get("results", []),
-            evaluation_statement=EVALUATION_STATEMENT,
+            evaluation_statement=project_data.get("evaluation_statement", EVALUATION_STATEMENT),
+            suggested_validation_tests=project_data.get("suggested_validation_tests") or {},
             disclaimer=DISCLAIMER_TEXT,
             active_geometry_engine=project_data.get("active_geometry_engine", "trimesh"),
         )
@@ -250,7 +271,7 @@ class ReportGenerator:
                 "generator": "NxtPak AI v1.0",
                 "label": "PRELIMINARY GEOMETRIC PROTOTYPE",
                 "disclaimer": DISCLAIMER_TEXT,
-                "evaluation_statement": EVALUATION_STATEMENT,
+                "evaluation_statement": project_data.get("evaluation_statement", EVALUATION_STATEMENT),
             },
             "project": project_data,
         }
@@ -276,6 +297,7 @@ class ReportGenerator:
             TableStyle,
         )
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from xml.sax.saxutils import escape
 
         doc = SimpleDocTemplate(
             str(file_path),
@@ -315,6 +337,9 @@ class ReportGenerator:
             fontSize=9,
             textColor=colors.HexColor("#1e293b"),
         )
+        cell_style = ParagraphStyle("TableCell", parent=body_style, fontSize=7, leading=8)
+        def cell(value: Any) -> Paragraph:
+            return Paragraph(escape(str(value if value is not None else "")), cell_style)
         disclaimer_style = ParagraphStyle(
             "Disclaimer",
             parent=styles["Normal"],
@@ -376,15 +401,16 @@ class ReportGenerator:
         for a in alts:
             alt_data.append(
                 [
-                    a.get("name", ""),
-                    f"{a.get('outer_length_mm')}×{a.get('outer_width_mm')}×{a.get('outer_height_mm')}",
-                    f"{a.get('clearance_length_mm')} mm",
-                    f"{a.get('savings', {}).get('volume_utilization_pct', 0)}%",
-                    f"{a.get('material_usage', {}).get('total_material_volume_cm3', 0)} cm³",
-                    a.get("rank", ""),
+                    cell(a.get("name", "")),
+                    cell(f"{a.get('outer_length_mm')} × {a.get('outer_width_mm')} × {a.get('outer_height_mm')}"),
+                    cell(f"{a.get('clearance_length_mm')} mm"),
+                    cell(f"{a.get('savings', {}).get('volume_utilization_pct', 0)}%"),
+                    cell(f"{a.get('material_usage', {}).get('total_material_volume_cm3', 0)} cm³"),
+                    cell(a.get("rank", "")),
                 ]
             )
-        t_alts = Table(alt_data, colWidths=[120, 120, 70, 70, 80, 70])
+        alt_data[0] = [cell(value) for value in alt_data[0]]
+        t_alts = Table(alt_data, colWidths=[125, 105, 65, 65, 95, 75])
         t_alts.setStyle(
             TableStyle(
                 [
@@ -400,8 +426,8 @@ class ReportGenerator:
         elements.append(Spacer(1, 12))
 
         # 3. Standards
-        elements.append(Paragraph("3. ISO Standards Evaluation Summary", h2_style))
-        elements.append(Paragraph(f"<i>{EVALUATION_STATEMENT}</i>", sub_style))
+        elements.append(Paragraph("3. ISO + ISTA Standards Evaluation Summary", h2_style))
+        elements.append(Paragraph(f"<i>{project_data.get('evaluation_statement', EVALUATION_STATEMENT)}</i>", sub_style))
         std_data = [["Standard", "Check Type", "Status", "Evaluation Note"]]
         std_results = project_data.get("standards_result", {}).get("results", [])
         for s in std_results[:8]:  # Top entries for concise page fitting
@@ -410,7 +436,7 @@ class ReportGenerator:
                     s.get("standard_identifier", ""),
                     s.get("check_type", ""),
                     s.get("status", ""),
-                    Paragraph(s.get("details", "")[:120], body_style),
+                    Paragraph(escape(s.get("details", "")), body_style),
                 ]
             )
         t_std = Table(std_data, colWidths=[90, 80, 90, 270])
@@ -427,6 +453,16 @@ class ReportGenerator:
         )
         elements.append(t_std)
         elements.append(Spacer(1, 14))
+
+        plan = project_data.get("suggested_validation_tests") or {}
+        elements.append(Paragraph("Suggested validation tests (to be performed in an accredited lab)", h2_style))
+        elements.append(Paragraph(plan.get("guidance_note", "Summaries are for guidance. Use the current official ISTA procedure for testing."), body_style))
+        plan_lines = [f"{item.get('standard_identifier')}: {item.get('reason')}" for item in plan.get("suggested_tests", [])]
+        if not plan_lines:
+            plan_lines = ["No procedure suggested: enter product weight and shipping mode."]
+        for line in plan_lines:
+            elements.append(Paragraph(line, body_style))
+        elements.append(Spacer(1, 10))
 
         # 4. Mandatory Disclaimer
         elements.append(Paragraph("<b>Mandatory Engineering Disclaimer:</b>", h2_style))

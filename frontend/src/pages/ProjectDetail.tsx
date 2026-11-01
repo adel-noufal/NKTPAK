@@ -1,14 +1,16 @@
 import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getProject } from '../api/projects'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getProject, updateProject, reoptimizeProject } from '../api/projects'
 import { PackagingViewer3D } from '../components/viewer/PackagingViewer3D'
 import { AlternativeComparison } from '../components/optimization/AlternativeComparison'
-import { StandardsTable } from '../components/standards/StandardsTable'
+import { ProjectStandardsCatalog } from '../components/standards/ProjectStandardsCatalog'
 import { ExportPanel } from '../components/export/ExportPanel'
 import { ComparisonPanel } from '../components/comparison/ComparisonPanel'
 import { RecommendationView } from '../components/recommendation/RecommendationView'
-import type { PackagingAlternative } from '../types'
+import { PRODUCT_TYPES, type FragilityClass, type PackagingAlternative, type ProductType } from '../types'
+import { inferProductType } from '../components/viewer/productModel'
+import apiClient from '../api/client'
 
 type TabId = '3d' | 'recommendation' | 'comparison' | 'side-by-side' | 'standards' | 'export'
 
@@ -17,7 +19,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'recommendation', label: 'AI Recommendation' },
   { id: 'comparison', label: 'Alternatives' },
   { id: 'side-by-side', label: 'Comparison' },
-  { id: 'standards', label: 'ISO Standards' },
+  { id: 'standards', label: 'Standards' },
   { id: 'export', label: 'Export' },
 ]
 
@@ -25,11 +27,20 @@ export const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<TabId>('3d')
   const [selectedAlt, setSelectedAlt] = useState<PackagingAlternative | null>(null)
+  const [productTypeSaveError, setProductTypeSaveError] = useState<string | null>(null)
+  const [editProductForm, setEditProductForm] = useState<Record<string, string> | null>(null)
+  const [editProductError, setEditProductError] = useState<string | null>(null)
+  const [optimizationStale, setOptimizationStale] = useState(false)
+  const queryClient = useQueryClient()
 
   const { data: project, isLoading, error } = useQuery({
     queryKey: ['project', id],
     queryFn: () => getProject(id!),
     enabled: !!id,
+  })
+  const { data: standardsCatalog } = useQuery({
+    queryKey: ['standards-registry'],
+    queryFn: async () => (await apiClient.get('/standards')).data,
   })
 
   React.useEffect(() => {
@@ -84,7 +95,15 @@ export const ProjectDetail: React.FC = () => {
   const isDraft = project.status === 'draft'
 
   const productData: any = project.product_data || {}
-  const productDims = productData.packed_dimensions
+  const productType = (productData.product_type || inferProductType(`${productData.name || ''} ${project.name} ${project.model_number || ''}`) || 'other') as ProductType
+  const fragilityClass = (productData.fragility_class || 'MEDIUM') as FragilityClass
+  const optimizationConfig = project.optimization_config || {}
+  const requiredClearanceMm = fragilityClass === 'LOW'
+    ? optimizationConfig.min_clearance_mm ?? 15
+    : fragilityClass === 'MEDIUM'
+      ? optimizationConfig.standard_clearance_mm ?? 25
+      : optimizationConfig.generous_clearance_mm ?? 40
+  const productDims = productData.packed_dimensions && [productData.packed_dimensions.length, productData.packed_dimensions.width, productData.packed_dimensions.height].every((value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0)
     ? {
         length: productData.packed_dimensions.length,
         width: productData.packed_dimensions.width,
@@ -92,8 +111,65 @@ export const ProjectDetail: React.FC = () => {
       }
     : null
 
+  const openProductEditor = () => {
+    const dims = productData.packed_dimensions || {}
+    setEditProductError(null)
+    setEditProductForm({
+      name: String(productData.name || project.name || ''),
+      weight_kg: String(productData.weight_kg ?? ''),
+      length: String(dims.length ?? ''),
+      width: String(dims.width ?? ''),
+      height: String(dims.height ?? ''),
+      product_type: productType,
+      shipping_mode: String(productData.shipping_mode || ''),
+      components: JSON.stringify(productData.components || [], null, 2),
+    })
+  }
+
+  const saveProductEditor = async () => {
+    if (!editProductForm) return
+    try {
+      setEditProductError(null)
+      const components = JSON.parse(editProductForm.components)
+      if (!Array.isArray(components)) throw new Error('Components must be a JSON array.')
+      const dimensions = { length: Number(editProductForm.length), width: Number(editProductForm.width), height: Number(editProductForm.height), unit: 'mm' }
+      if (![dimensions.length, dimensions.width, dimensions.height].every((value) => Number.isFinite(value) && value > 0)) throw new Error('Enter positive product dimensions in millimetres.')
+      const weight = Number(editProductForm.weight_kg)
+      if (!Number.isFinite(weight) || weight <= 0) throw new Error('Enter a product weight greater than zero.')
+      const nextProductData = { ...productData, name: editProductForm.name, weight_kg: weight, product_type: editProductForm.product_type, shipping_mode: editProductForm.shipping_mode || null, packed_dimensions: dimensions, components }
+      await updateProject(project.project_id, { product_data: nextProductData })
+      queryClient.setQueryData(['project', id], (current: any) => ({ ...current, product_data: nextProductData, components_data: components }))
+      setEditProductForm(null)
+      setOptimizationStale(true)
+      if (window.confirm('Product data saved. Re-run optimization now to refresh packaging results?')) {
+        await reoptimizeProject(project.project_id)
+        await queryClient.invalidateQueries({ queryKey: ['project', id] })
+        setOptimizationStale(false)
+      }
+    } catch (err) {
+      setEditProductError(err instanceof Error ? err.message : 'Could not save product data.')
+    }
+  }
+
   return (
     <div className="space-y-6 pb-16">
+      {editProductForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-product-title">
+          <form onSubmit={(event) => { event.preventDefault(); void saveProductEditor() }} className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border border-stone-300 bg-white p-6 shadow-xl dark:border-stone-700 dark:bg-stone-900">
+            <h2 id="edit-product-title" className="text-base font-bold">Edit product data</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {([['Product name','name'],['Weight (kg)','weight_kg'],['Length (mm)','length'],['Width (mm)','width'],['Height (mm)','height']] as const).map(([label,key]) => (
+                <label key={key} className="space-y-1 text-xs"><span>{label}</span><input required type="number" step="any" value={editProductForm[key]} onChange={(event) => setEditProductForm({ ...editProductForm, [key]: event.target.value })} className="w-full rounded border border-stone-300 bg-white px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800" /></label>
+              ))}
+              <label className="space-y-1 text-xs"><span>Product type</span><select value={editProductForm.product_type} onChange={(event) => setEditProductForm({ ...editProductForm, product_type: event.target.value })} className="w-full rounded border border-stone-300 bg-white px-2 py-1.5 capitalize dark:border-stone-700 dark:bg-stone-800">{PRODUCT_TYPES.map((type) => <option key={type} value={type}>{type.replace(/_/g,' ')}</option>)}</select></label>
+              <label className="space-y-1 text-xs"><span>Shipping mode</span><select value={editProductForm.shipping_mode} onChange={(event) => setEditProductForm({ ...editProductForm, shipping_mode: event.target.value })} className="w-full rounded border border-stone-300 bg-white px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"><option value="">Not specified</option><option value="courier_parcel">Courier / parcel</option><option value="ltl_pallet">LTL pallet</option><option value="full_truck">Full truckload</option><option value="container">Container</option><option value="ecommerce_marketplace">E-commerce marketplace</option></select></label>
+            </div>
+            <label className="block space-y-1 text-xs"><span>Product components (JSON array)</span><textarea rows={7} value={editProductForm.components} onChange={(event) => setEditProductForm({ ...editProductForm, components: event.target.value })} className="w-full rounded border border-stone-300 bg-white p-2 font-mono text-xs dark:border-stone-700 dark:bg-stone-800" /></label>
+            {editProductError && <p role="alert" className="text-xs text-rose-600">{editProductError}</p>}
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditProductForm(null)} className="rounded border px-3 py-2 text-xs">Cancel</button><button type="submit" className="rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white">Save product data</button></div>
+          </form>
+        </div>
+      )}
       {/* Breadcrumb + header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
@@ -204,7 +280,7 @@ export const ProjectDetail: React.FC = () => {
       {!isDraft && optResult && (
         <div className="text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded px-3 py-2">
           {optResult.result_warning}
-          {' '}Evaluated against: NxtPak ISO registry v1. No company-specific requirements loaded.
+          {' '}{standardsCatalog?.evaluation_statement || 'Loading ISO and ISTA registry metadata…'}
         </div>
       )}
 
@@ -236,19 +312,52 @@ export const ProjectDetail: React.FC = () => {
         <div className="space-y-6">
           {isDraft ? (
             <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center text-slate-400">
-              <p className="text-sm">3D visualization is available after optimization runs.</p>
-              <p className="text-xs mt-1">Add component dimensions and re-run optimization.</p>
+              {productDims ? <><p className="text-sm">3D visualization is available after optimization runs.</p><p className="text-xs mt-1">Add component dimensions and re-run optimization.</p></> : <p role="alert" data-testid="missing-dimensions-message">Product dimensions are missing — enter them</p>}
+              <button type="button" onClick={openProductEditor} className="mt-3 rounded bg-amber-700 px-4 py-2 text-xs font-semibold text-white">Edit product dimensions</button>
             </div>
           ) : (
+            <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="flex flex-wrap items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
+              <span>Product type</span>
+              <select
+                data-testid="project-product-type-select"
+                value={productType}
+                onChange={async (event) => {
+                  const nextType = event.target.value as ProductType
+                  const nextProductData = { ...productData, product_type: nextType, product_type_provenance: { source_name: 'User entered', source_type: 'USER_ENTERED', is_edited: true } }
+                  try {
+                    setProductTypeSaveError(null)
+                    await updateProject(project.project_id, { product_data: nextProductData })
+                    queryClient.setQueryData(['project', id], { ...project, product_data: nextProductData })
+                  } catch (err) {
+                    setProductTypeSaveError(err instanceof Error ? err.message : 'Could not save product type')
+                  }
+                }}
+                className="rounded-md border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 px-2 py-1 capitalize"
+              >
+                {PRODUCT_TYPES.map((type) => <option key={type} value={type}>{type.split('_').join(' ')}</option>)}
+              </select>
+              <span>Source: {productData.product_type_provenance?.source_name || (productData.product_type ? 'Saved project data' : 'Inferred from product name')}</span>
+            </label>
+            <button type="button" onClick={openProductEditor} className="rounded border border-stone-300 px-3 py-1.5 text-xs font-semibold dark:border-stone-700">Edit product data</button>
+            </div>
+            {optimizationStale && <p role="status" className="text-xs text-amber-700">Product data saved. Re-run optimization to refresh packaging results.</p>}
+            {productTypeSaveError && <p role="alert" className="text-xs text-rose-600">{productTypeSaveError}</p>}
             <PackagingViewer3D
               alternative={activeAlt}
               productDims={productDims}
-              category={project.product_data?.category || project.name}
+              category={project.product_data?.category || null}
               productName={project.name}
-              components={project.components_data || (project.product_data as any)?.components || []}
+              modelProject={{ ...productData, product_type: productType }}
+              fragilityClass={fragilityClass}
+              requiredClearanceMm={requiredClearanceMm}
+              components={Array.isArray(productData.components) ? productData.components : []}
+              onEditProduct={openProductEditor}
+              onAddParts={openProductEditor}
               images={(project.product_data as any)?.images || ((project.product_data as any)?.image_url ? [(project.product_data as any).image_url] : [])}
-              provenanceBadge="Deterministic parametric model — upload CAD for exact geometry"
             />
+            </div>
           )}
 
           {/* Alternative selector */}
@@ -296,8 +405,11 @@ export const ProjectDetail: React.FC = () => {
         <RecommendationView
           projectId={project.project_id}
           productDims={productDims}
-          components={project.components_data || (project.product_data as any)?.components || []}
+          components={Array.isArray(productData.components) ? productData.components : []}
           images={(project.product_data as any)?.images || ((project.product_data as any)?.image_url ? [(project.product_data as any).image_url] : [])}
+          modelProject={{ ...productData, product_type: productType }}
+          fragilityClass={fragilityClass}
+          requiredClearanceMm={requiredClearanceMm}
         />
       )}
 
@@ -324,7 +436,7 @@ export const ProjectDetail: React.FC = () => {
       )}
 
       {/* Tab: ISO Standards */}
-      {activeTab === 'standards' && <StandardsTable evaluationResult={stdResult} />}
+      {activeTab === 'standards' && <ProjectStandardsCatalog projectId={project.project_id} evaluationResult={stdResult} />}
 
       {/* Tab: Export */}
       {activeTab === 'export' && (
@@ -332,6 +444,8 @@ export const ProjectDetail: React.FC = () => {
           projectId={project.project_id}
           alternativeId={activeAlt?.alternative_id || ''}
           projectName={project.name}
+          hasOptimization={Boolean(activeAlt && alternatives.length > 0)}
+          hasProductDimensions={Boolean(productDims)}
         />
       )}
     </div>

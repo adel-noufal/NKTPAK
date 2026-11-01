@@ -52,7 +52,7 @@ export const Sidebar: React.FC = () => {
     { to: '/', label: t('nav.dashboard', 'Dashboard'), icon: <IconDashboard />, end: true },
     { to: '/projects/new', label: t('nav.newProject', 'New Project'), icon: <IconPlus />, end: false },
     { to: '/projects', label: t('nav.projects', 'Projects'), icon: <IconFolder />, end: true },
-    { to: '/standards', label: t('nav.standards', 'ISO Standards'), icon: <IconStandards />, end: false },
+    { to: '/standards', label: t('nav.standards', 'Standards'), icon: <IconStandards />, end: false },
     { to: '/settings', label: t('nav.settings', 'Settings'), icon: <IconSettings />, end: false },
   ]
 

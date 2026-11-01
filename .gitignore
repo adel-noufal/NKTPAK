@@ -23,6 +23,7 @@ wheels/
 .installed.cfg
 *.egg
 .pytest_cache/
+backend/exports/
 
 # Databases
 *.db
@@ -38,6 +39,8 @@ node_modules/
 frontend/dist/
 frontend/node_modules/
 frontend/.pnpm-store/
+frontend/test-results/
+frontend/playwright-report/
 .npm
 .eslintcache
 

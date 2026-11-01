@@ -77,6 +77,7 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.api_prefix)
 
 
+@app.get("/api/health", tags=["System"])
 @app.get("/health", tags=["System"])
 def health_check() -> dict[str, Any]:
     """Basic health check and system information including real LLM status."""

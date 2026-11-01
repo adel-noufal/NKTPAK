@@ -22,6 +22,7 @@ def test_deterministic_blender_extraction():
     assert data.get("carton_width_mm") == 200.0
     assert data.get("carton_height_mm") == 420.0
     assert data.get("fragility") == "HIGH"  # glass jug
+    assert data.get("product_type") == "blender"
 
 
 def test_deterministic_fan_extraction():
@@ -40,6 +41,16 @@ def test_deterministic_fan_extraction():
     assert data.get("carton_width_mm") == 310.0
     assert data.get("carton_height_mm") == 490.0
     assert data.get("board_type") == "BC Double Wall"
+    assert data.get("product_type") == "stand_fan"
+
+
+def test_product_type_extraction_provenance_is_saved():
+    draft = merge_extractions(
+        {"product_type": "blender"},
+        {"product_type": "refrigerator"},
+    )
+    assert draft.product_type == "blender"
+    assert next(field for field in draft.fields if field.field == "product_type").provenance == "FROM_DESCRIPTION"
 
 
 def test_merge_extractions_provenance_labels():

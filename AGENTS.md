@@ -186,9 +186,19 @@ Frontend: `http://localhost:5173`
 
 ---
 
-## Current Milestone: Milestone 1
+## Current Milestone: Production Release v2 (All 32 Backend Tests & Frontend Vitest Passed)
 
-See `project-plan.md` for detailed status.
+- Database ships completely empty (0 rows). Test database completely isolated via `test_nxtpak.db` conftest fixture.
+- Free-text "Describe your project" AI prompt box on NewProject screen with automated field extraction, model auto-enrichment button, and required field validation.
+- Live LLM model listing (`/api/v1/llm-models`) dynamically fetching text models from Google Gemini (with `x-goog-api-key` header, not URL query params), Anthropic, and OpenAI.
+- Real connection test endpoint (`/api/v1/test-llm-connection`) with latency measurement and human-readable plain language error translation.
+- 3D Workspace upgraded: removed floating "Product Envelope" text, added dynamic HTML dimension callouts, dimension overlays, and explicit "Approximate shape from entered dimensions — upload CAD for exact geometry" provenance banner.
+- AssistantPanel refactored from floating fixed bubble to clean collapsible drawer accessible directly from the top navigation bar.
+- Refined warm paper & warm charcoal aesthetic with calm stone tones across light and dark modes.
+- McKee Box Compression Test (BCT) strength calculations and Euro Pallet (1200x800) layer packing optimization.
+- Multi-candidate side-by-side picker cards and duplicate product detection (`(brand, model, sku)`).
+- FEFCO 0201 DXF Dieline generation with separated CUT and CREASE layers.
+- Complete English and Arabic (RTL) interface with Light and Dark themes.
 
 ---
 

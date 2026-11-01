@@ -121,7 +121,8 @@ class ProductSpecsAgent:
 
         # ── Provenance ───────────────────────────────────────────────────────
         if product_input.provenance:
-            prov_label = product_input.provenance.data_label.value
+            prov_raw = getattr(product_input.provenance, "data_label", getattr(product_input.provenance, "source_type", "USER_ENTERED"))
+            prov_label = prov_raw.value if hasattr(prov_raw, "value") else str(prov_raw)
             prov_source = product_input.provenance.source_name
         else:
             prov_label = DataLabel.USER_ENTERED.value
@@ -129,7 +130,7 @@ class ProductSpecsAgent:
             assumptions.append("No provenance object provided; data_label defaulted to USER_ENTERED.")
 
         # ── Fragility note ────────────────────────────────────────────────────
-        if product_input.fragility_note:
+        if getattr(product_input, "fragility_note", None):
             assumptions.append(f"Fragility note (user-entered): {product_input.fragility_note}")
 
         result: dict[str, Any] = {

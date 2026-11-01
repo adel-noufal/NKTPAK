@@ -7,12 +7,14 @@ import { AlternativeComparison } from '../components/optimization/AlternativeCom
 import { StandardsTable } from '../components/standards/StandardsTable'
 import { ExportPanel } from '../components/export/ExportPanel'
 import { ComparisonPanel } from '../components/comparison/ComparisonPanel'
+import { RecommendationView } from '../components/recommendation/RecommendationView'
 import type { PackagingAlternative } from '../types'
 
-type TabId = '3d' | 'comparison' | 'side-by-side' | 'standards' | 'export'
+type TabId = '3d' | 'recommendation' | 'comparison' | 'side-by-side' | 'standards' | 'export'
 
 const tabs: { id: TabId; label: string }[] = [
   { id: '3d', label: '3D Workspace' },
+  { id: 'recommendation', label: 'AI Recommendation' },
   { id: 'comparison', label: 'Alternatives' },
   { id: 'side-by-side', label: 'Comparison' },
   { id: 'standards', label: 'ISO Standards' },
@@ -47,12 +49,30 @@ export const ProjectDetail: React.FC = () => {
 
   if (error || !project) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-6 rounded-lg text-center space-y-3">
-        <p className="font-semibold text-sm">Could not load project</p>
-        <p className="text-xs">{(error as any)?.message || 'Project not found'}</p>
-        <Link to="/" className="inline-block px-4 py-2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs">
-          Return to Dashboard
-        </Link>
+      <div className="max-w-md mx-auto my-16 p-8 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-sm text-center space-y-4">
+        <div className="w-12 h-12 mx-auto rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-500">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">Project Not Found</h2>
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          This project doesn't exist or was deleted.
+        </p>
+        <div className="pt-2 flex items-center justify-center gap-3">
+          <Link
+            to="/projects"
+            className="px-3.5 py-2 rounded-md border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-semibold text-stone-700 dark:text-stone-300 transition-colors"
+          >
+            Go to Projects
+          </Link>
+          <Link
+            to="/projects/new"
+            className="px-3.5 py-2 rounded-md bg-stone-800 hover:bg-stone-700 dark:bg-stone-200 dark:hover:bg-stone-100 text-white dark:text-stone-900 text-xs font-semibold shadow transition-colors"
+          >
+            New Project
+          </Link>
+        </div>
       </div>
     )
   }
@@ -104,16 +124,29 @@ export const ProjectDetail: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('export')}
-          className="shrink-0 px-3.5 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition-colors flex items-center gap-1.5"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export Report
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('recommendation')}
+            className="shrink-0 px-3.5 py-2 rounded-md bg-stone-800 hover:bg-stone-700 dark:bg-stone-200 dark:hover:bg-stone-100 text-white dark:text-stone-900 text-xs font-semibold shadow transition-colors flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Get AI Recommendation
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('export')}
+            className="shrink-0 px-3.5 py-2 rounded-md border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export Report
+          </button>
+        </div>
       </div>
 
       {/* Draft banner */}
@@ -207,7 +240,15 @@ export const ProjectDetail: React.FC = () => {
               <p className="text-xs mt-1">Add component dimensions and re-run optimization.</p>
             </div>
           ) : (
-            <PackagingViewer3D alternative={activeAlt} productDims={productDims} />
+            <PackagingViewer3D
+              alternative={activeAlt}
+              productDims={productDims}
+              category={project.product_data?.category || project.name}
+              productName={project.name}
+              components={project.components_data || (project.product_data as any)?.components || []}
+              images={(project.product_data as any)?.images || ((project.product_data as any)?.image_url ? [(project.product_data as any).image_url] : [])}
+              provenanceBadge="Deterministic parametric model — upload CAD for exact geometry"
+            />
           )}
 
           {/* Alternative selector */}
@@ -248,6 +289,16 @@ export const ProjectDetail: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab: AI Recommendation */}
+      {activeTab === 'recommendation' && (
+        <RecommendationView
+          projectId={project.project_id}
+          productDims={productDims}
+          components={project.components_data || (project.product_data as any)?.components || []}
+          images={(project.product_data as any)?.images || ((project.product_data as any)?.image_url ? [(project.product_data as any).image_url] : [])}
+        />
       )}
 
       {/* Tab: Alternatives table */}

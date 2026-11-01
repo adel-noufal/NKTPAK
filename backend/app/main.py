@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,14 +78,21 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 
 @app.get("/health", tags=["System"])
-def health_check() -> dict[str, str]:
-    """Basic health check and system information."""
+def health_check() -> dict[str, Any]:
+    """Basic health check and system information including real LLM status."""
+    from app.services.assistant_service import get_llm_config
+    llm_cfg = get_llm_config()
+    llm_online = bool(llm_cfg.get("api_key"))
+
     return {
         "status": "healthy",
         "app_name": settings.app_name,
         "version": settings.app_version,
         "geometry_engine": get_active_engine(),
         "standards_version": "v1",
+        "llm_status": "online" if llm_online else "offline",
+        "llm_provider": llm_cfg.get("provider", "anthropic"),
+        "llm_model": llm_cfg.get("model", "claude-3-5-sonnet-20241022"),
     }
 
 

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ProjectDetail, PackagingAlternative } from '../types'
 
-export type ViewMode = 'box' | 'inside' | 'product'
+export type ViewMode = 'box' | 'inside' | 'product' | 'exploded'
 export type Language = 'en' | 'ar'
 export type Theme = 'light' | 'dark' | 'system'
 

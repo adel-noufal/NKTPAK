@@ -2,7 +2,6 @@ import React, { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import { Sidebar } from './Sidebar'
-import { AssistantPanel } from '../assistant/AssistantPanel'
 import { useProjectStore } from '../../store/projectStore'
 
 export const Layout: React.FC = () => {
@@ -28,7 +27,7 @@ export const Layout: React.FC = () => {
   return (
     <div
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans"
+      className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col font-sans"
     >
       <Navbar />
       <div className="flex-1 flex overflow-hidden">
@@ -37,8 +36,6 @@ export const Layout: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>
-          {/* Floating assistant available on all pages */}
-          <AssistantPanel />
         </main>
       </div>
     </div>

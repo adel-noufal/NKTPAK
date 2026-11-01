@@ -1,7 +1,6 @@
 // ============================================================
-// NxtPak AI — TypeScript Types (v6)
-// Aligned with backend Pydantic schemas — real data model with provenance.
-// No fake/invented values. Missing values are null/undefined.
+// NxtPak AI — TypeScript Types (Production Grade)
+// Zero fake data, strict validation, full provenance tracking.
 // ============================================================
 
 export enum FragilityClass {
@@ -25,22 +24,15 @@ export enum CheckStatus {
   NOT_VERIFIABLE = 'NOT_VERIFIABLE',
 }
 
-export enum DataLabel {
-  SAMPLE_DATA = 'SAMPLE DATA',
-  PUBLIC_RETAIL_UNVERIFIED = 'PUBLIC RETAIL DATA - UNVERIFIED',
-  USER_ENTERED = 'USER ENTERED',
-  ESTIMATE = 'ESTIMATE',
-  UNVERIFIED = 'UNVERIFIED',
-  VERIFIED = 'VERIFIED',
-}
-
 export enum SourceType {
   EL_ARABY_DATASHEET = 'EL_ARABY_DATASHEET',
   EL_ARABY_WEBSITE = 'EL_ARABY_WEBSITE',
   PUBLIC_RETAIL = 'PUBLIC_RETAIL',
   USER_ENTERED = 'USER_ENTERED',
+  CAD_EXTRACTED = 'CAD_EXTRACTED',
+  AI_ESTIMATED = 'AI_ESTIMATED',
+  FROM_DESCRIPTION = 'FROM_DESCRIPTION',
   DERIVED = 'DERIVED',
-  SAMPLE_DATA = 'SAMPLE_DATA',
   OFFICIAL_COMPANY = 'OFFICIAL_COMPANY',
 }
 
@@ -50,21 +42,16 @@ export enum AlternativeRank {
   BASELINE = 'BASELINE',
 }
 
-// ── Provenance ────────────────────────────────────────────────
 export interface Provenance {
   source_name: string
   source_url?: string
   retrieval_date?: string
-  source_type?: SourceType
+  source_type: SourceType
+  confidence?: number
   is_edited?: boolean
   evidence_snippet?: string
-  // legacy compat
-  data_label?: string
-  verified?: boolean
-  verification_note?: string
 }
 
-// ── Dimensions ───────────────────────────────────────────────
 export interface DimensionsInput {
   length: number
   width: number
@@ -72,7 +59,6 @@ export interface DimensionsInput {
   unit: 'mm' | 'cm' | 'm' | 'inch'
 }
 
-// ── Component ────────────────────────────────────────────────
 export interface ComponentInput {
   name: string
   length_mm?: number | null
@@ -85,88 +71,80 @@ export interface ComponentInput {
   provenance?: Provenance
 }
 
-// ── Product ──────────────────────────────────────────────────
 export interface ProductInput {
   name: string
-  model?: string | null
-  brand?: string | null
+  brand: string
+  model: string
+  sku?: string | null
   category?: string | null
-  packed_dimensions?: DimensionsInput | null  // optional — may not be known
-  weight_kg?: number | null
-  fragility_class?: FragilityClass | null      // required user choice, no hidden default
-  fragility_note?: string
+  weight_kg: number
+  fragility_class: FragilityClass
+  packed_dimensions: DimensionsInput
   components?: ComponentInput[]
+  image_url?: string | null
+  images?: string[]
   provenance?: Provenance
   notes?: string
 }
 
-// ── Baseline Packaging ───────────────────────────────────────
 export interface BaselinePackaging {
   carton_outer_length_mm: number
   carton_outer_width_mm: number
   carton_outer_height_mm: number
-  board_thickness_mm?: number | null  // optional — may not be known
-  board_type?: string
-  carton_cost_per_unit?: number | null
-  total_insert_cost_per_unit?: number | null
-  currency?: string
-  data_label?: string
+  board_type: string
+  board_thickness_mm: number
+  carton_cost_per_unit: number
+  currency: string
+  units_per_pallet: number
+  pallet_type: string
   notes?: string
   provenance?: Provenance
 }
 
-// ── Planned Packaging (user's own proposed design) ───────────
 export interface PlannedPackaging {
   carton_outer_length_mm: number
   carton_outer_width_mm: number
   carton_outer_height_mm: number
-  board_thickness_mm?: number | null
+  board_thickness_mm: number
   notes?: string
   provenance?: Provenance
 }
 
-// ── Optimization Config ──────────────────────────────────────
 export interface OptimizationConfig {
   min_clearance_mm?: number
   standard_clearance_mm?: number
   generous_clearance_mm?: number
   board_thickness_mm?: number
   insert_thickness_mm?: number
-  unit_load_length_mm?: number | null
-  unit_load_width_mm?: number | null
-  unit_load_height_mm?: number | null
-  module_length_mm?: number | null
-  module_width_mm?: number | null
 }
 
-// ── Project Create ───────────────────────────────────────────
 export interface ProjectCreate {
   name: string
   description?: string
   product: ProductInput
-  components?: ComponentInput[]
-  baseline?: BaselinePackaging
+  baseline: BaselinePackaging
   planned?: PlannedPackaging
+  components?: ComponentInput[]
   optimization_config?: OptimizationConfig
   language?: 'en' | 'ar'
 }
 
-// ── Material / Cost / Savings ────────────────────────────────
 export interface MaterialUsage {
   carton_board_area_cm2: number
   carton_board_volume_cm3: number
   insert_volume_cm3: number
   total_material_volume_cm3: number
+  corrugated_board_weight_kg: number
+  co2_footprint_kg: number
   label: string
   formula_notes: string
 }
 
 export interface CostBreakdown {
-  carton_cost?: number
-  insert_cost?: number
-  total_cost?: number
-  currency?: string
-  cost_label: string
+  carton_cost: number
+  insert_cost: number
+  total_cost: number
+  currency: string
   cost_status: string
 }
 
@@ -174,19 +152,43 @@ export interface SavingsMetrics {
   volume_utilization: number
   volume_utilization_pct: number
   volume_utilization_formula?: string
-  material_saved_pct?: number | null
-  material_saved_cm3?: number | null
+  material_saved_pct: number
+  material_saved_cm3: number
   material_savings_formula?: string
-  cost_saved?: number | null
-  cost_saved_pct?: number | null
-  currency?: string
-  savings_label: string
+  cost_saved: number
+  cost_saved_pct: number
+  co2_saved_kg: number
+  currency: string
   baseline_available: boolean
   savings_status: string
-  inputs_used?: string[] | null
+  inputs_used?: string[]
 }
 
-// ── Packaging Alternative ────────────────────────────────────
+export interface McKeeCalculation {
+  ect_kn_m: number
+  board_thickness_mm: number
+  box_perimeter_mm: number
+  bct_newtons: number
+  bct_kgf: number
+  safety_factor: number
+  max_safe_stack_load_kg: number
+  estimated_max_stack_layers: number
+  formula_display: string
+}
+
+export interface PalletizationResult {
+  pallet_type: string
+  pallet_length_mm: number
+  pallet_width_mm: number
+  max_pallet_height_mm: number
+  cartons_per_layer: number
+  layers_count: number
+  total_cartons_per_pallet: number
+  pallet_area_utilization_pct: number
+  total_pallet_weight_kg: number
+  stacking_pattern: string
+}
+
 export interface PackagingAlternative {
   alternative_id: string
   name: string
@@ -202,34 +204,33 @@ export interface PackagingAlternative {
   clearance_length_mm: number
   clearance_width_mm: number
   clearance_height_mm: number
-  clearance_label?: string  // always "ENGINEERING_ASSUMPTION — user-editable, not ISO-specified"
+  clearance_label?: string
   insert_thickness_mm: number
   insert_description: string
   material_usage: MaterialUsage
   savings: SavingsMetrics
   cost: CostBreakdown
+  mckee_compression: McKeeCalculation
+  palletization: PalletizationResult
   ranking_score: number
   ranking_criteria: Record<string, any>
   assumptions: string[]
-  data_label: string
   standards_summary?: Record<string, any>
 }
 
-// ── Optimization Result ──────────────────────────────────────
 export interface OptimizationResult {
   project_id: string
   product_name: string
   product_volume_mm3: number
+  baseline_outer_volume_liters: number
   alternatives: PackagingAlternative[]
   recommended: PackagingAlternative
   baseline_included: boolean
   calculation_notes: string[]
   assumptions: string[]
-  result_label: string
   result_warning: string
 }
 
-// ── Standards ────────────────────────────────────────────────
 export interface StandardsCheckResult {
   entry_id: string
   standard_identifier: string
@@ -237,6 +238,7 @@ export interface StandardsCheckResult {
   check_type: CheckType
   status: CheckStatus
   details: string
+  clause?: string
   parameters_used: Record<string, any>
   sub_check_results: Array<{ sub_check_id: string; status: string; detail: string }>
   what_is_still_required: string[]
@@ -249,8 +251,6 @@ export interface StandardsEvaluationResult {
   evaluated_at: string
   registry_version: string
   registry_source: string
-  company_requirements_loaded: boolean
-  company_requirements_note: string
   evaluation_statement: string
   results: StandardsCheckResult[]
   programmatic_pass_count: number
@@ -261,53 +261,19 @@ export interface StandardsEvaluationResult {
   disclaimer: string
 }
 
-// ── Geometry ─────────────────────────────────────────────────
-export interface GeometryData {
-  engine: string
-  units: string
-  outer_carton: {
-    vertices: number[][]
-    faces: number[][]
-    dimensions_mm: { length: number; width: number; height: number }
-  }
-  inner_cavity: {
-    vertices: number[][]
-    faces: number[][]
-    dimensions_mm: { length: number; width: number; height: number }
-  }
-  product_mesh: {
-    vertices: number[][]
-    faces: number[][]
-    dimensions_mm: { length: number; width: number; height: number }
-  }
-  inserts_mesh?: {
-    vertices: number[][]
-    faces: number[][]
-    dimensions_mm: { length: number; width: number; height: number }
-  }
-  // Note: iso_2206_face_labels removed — ISO 2206 is about test-part identification, not viewer labeling
-}
-
-// ── Pipeline Result ──────────────────────────────────────────
-export interface PipelineResult {
-  project_id: string
-  normalized_product: any
-  optimization_result: OptimizationResult
-  standards_result: StandardsEvaluationResult
-  geometry_data: GeometryData
-  active_geometry_engine: string
-}
-
-// ── Project Detail ───────────────────────────────────────────
 export interface ProjectDetail {
   project_id: string
+  short_id: string
   name: string
+  brand: string
+  model_number: string
+  sku?: string | null
   description?: string
   status: string
   language: string
-  product_data: ProductInput | null
+  product_data: ProductInput
   components_data?: ComponentInput[]
-  baseline_data?: BaselinePackaging | null
+  baseline_data: BaselinePackaging
   planned_data?: PlannedPackaging | null
   optimization_config?: OptimizationConfig
   optimization_result?: OptimizationResult | null
@@ -318,44 +284,113 @@ export interface ProjectDetail {
   updated_at: string
 }
 
-// ── Example Projects ─────────────────────────────────────────
-export interface ExampleProject {
-  example_id: string
-  example_name: string
-  description: string
-  model?: string
-  brand?: string
-  data_label?: string
-  source_url?: string
-  source_type?: SourceType
-  available_fields?: string[]
-  missing_fields?: string[]
+export interface SourceEvidence {
+  source_name: string
+  source_url: string
+  snippet: string
+  fetched_at: string
+  confidence: number
+  is_official?: boolean
 }
 
-// ── Fetch Product ─────────────────────────────────────────────
-export interface FetchedFieldValue {
-  field_name: string
+export interface ProductSpecField {
   value: any
   unit?: string | null
+  status: 'verified' | 'found_single_source' | 'user' | 'calculated' | 'ai_estimated' | 'missing'
+  sources: SourceEvidence[]
+  conflict_values?: any[] | null
+}
+
+export interface ComponentSpec {
+  name: string
+  part_number?: string | null
+  length_mm: number
+  width_mm: number
+  height_mm: number
+  weight_kg: number
+  quantity: number
+  material?: string | null
+  fragile?: boolean
+  notes?: string | null
+}
+
+export interface CandidateSpecsResponse {
+  candidate_id: string
+  name: string
+  brand: string
+  model: string
+  sku?: string | null
+  category?: string | null
+  product_dimensions: ProductSpecField
+  carton_dimensions: ProductSpecField
+  net_weight: ProductSpecField
+  gross_weight: ProductSpecField
+  components: ComponentSpec[]
+  color?: string | null
+  power_voltage?: string | null
+  images: string[]
+  datasheet_url?: string | null
+  sources_checked: { source: string; status: string; url?: string }[]
+  summary_bar: {
+    filled_count: number
+    total_count: number
+    sources_summary: string
+    needs_confirmation_count: number
+    not_found_count: number
+    text: string
+  }
+  packed_dimensions_available: boolean
+  not_found_message?: string | null
+  similar_products_for_estimate?: { model: string; dims: string; weight: string; similarity: number }[]
+}
+
+export interface ProductCandidate {
+  candidate_id: string
+  name: string
+  brand: string
+  model: string
+  sku?: string | null
+  category?: string | null
+  net_weight_kg?: number | null
+  gross_weight_kg?: number | null
+  dimensions_mm?: { length: number; width: number; height: number } | null
+  carton_dimensions_mm?: { length: number; width: number; height: number } | null
+  image_url?: string | null
+  images?: string[]
+  datasheet_url?: string | null
   source_url: string
-  evidence_snippet: string
   source_type: SourceType
-  retrieval_date: string
-  is_edited?: boolean
+  confidence_score: number
+  specs_table?: Record<string, string>
+  components?: ComponentSpec[]
+  sources_checked?: { source: string; status: string; url?: string }[]
+  packed_dimensions_available?: boolean
+  not_found_message?: string | null
+  spec_fields?: Record<string, ProductSpecField>
+  notes?: string | null
+  provenance: Provenance
 }
 
-export interface FetchProductResult {
-  success: boolean
-  error?: string | null
-  source_url?: string | null
-  source_type?: SourceType | null
-  retrieved_at?: string | null
-  fields: FetchedFieldValue[]
-  unresolved_fields: string[]
-  warning?: string | null
+export interface ProductSearchRequest {
+  query?: string | null
+  brand?: string | null
+  category?: string | null
+  product_url?: string | null
+  country_code?: string | null
+  force_refresh?: boolean
 }
 
-// ── Upload File ───────────────────────────────────────────────
+export interface ProductSearchResponse {
+  query: string
+  normalized_query: string
+  candidates: ProductCandidate[]
+  exact_match: boolean
+  did_you_mean?: string | null
+  cached: boolean
+  source_url_used?: string | null
+  status_message: string
+}
+
 export interface UploadFileResult {
   success: boolean
   file_name: string
@@ -363,14 +398,35 @@ export interface UploadFileResult {
   error?: string | null
   warning?: string | null
   components: ComponentInput[]
-  bounding_box_mm?: Record<string, number | null> | null
-  units_confirmed: boolean
-  units_assumed?: string | null
+  bounding_box_mm?: Record<string, number> | null
+  volume_cm3?: number | null
+  surface_area_cm2?: number | null
+  center_of_mass?: number[] | null
+  is_watertight?: boolean | null
+  units_assumed: string
+  provenance?: Provenance | null
 }
 
-// ── AI Assistant ──────────────────────────────────────────────
+export interface AdminSettingsResponse {
+  llm_provider: string
+  llm_model: string
+  llm_configured: boolean
+  default_clearance_mm: number
+  default_board_cost_per_m2: number
+  currency: string
+}
+
+export interface AdminSettingsUpdate {
+  llm_provider?: string
+  llm_api_key?: string
+  llm_model?: string
+  default_clearance_mm?: number
+  default_board_cost_per_m2?: number
+  currency?: string
+}
+
 export interface AssistantMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   timestamp?: string
 }
@@ -385,6 +441,102 @@ export interface AssistantRequest {
 export interface AssistantResponse {
   reply: string
   mode: 'ai' | 'offline'
+  provider_name?: string | null
+  model_name?: string | null
+  tools_called: string[]
   fields_cited: string[]
   disclaimer?: string | null
+}
+
+// ── AI Recommendation Types ────────────────────────────────────
+
+export interface PackoutStep {
+  step_number: number
+  title: string
+  description: string
+  component_involved: string
+}
+
+export interface RejectedCandidate {
+  name: string
+  carton_length_mm: number
+  carton_width_mm: number
+  carton_height_mm: number
+  failed_check: string
+  explanation: string
+}
+
+export interface RecommendedCandidate {
+  candidate_id: string
+  name: string
+  badge: string
+  is_recommended: boolean
+
+  // Dimensions & Board
+  carton_length_mm: number
+  carton_width_mm: number
+  carton_height_mm: number
+  board_grade: string
+  board_thickness_mm: number
+  ect_kn_m: number
+  insert_type: string
+  insert_material: string
+  cushion_thickness_mm: number
+  orientation: string
+  units_per_carton: number
+
+  // Pallet Logistics
+  pallet_type: string
+  cartons_per_layer: number
+  layer_count: number
+  units_per_pallet: number
+  pallet_utilization_pct: number
+  pallet_overhang_mm: number
+  stacking_height_mm: number
+
+  // Engineering Calculations
+  bct_newtons: number
+  bct_kgf: number
+  stacking_load_kgf: number
+  safety_factor: number
+  box_perimeter_mm: number
+  carton_board_area_m2: number
+
+  // Savings
+  material_savings_pct: number
+  volume_savings_pct: number
+  cost_per_unit?: number | null
+  cost_savings_pct?: number | null
+  cost_savings_per_1000_units?: number | null
+  currency: string
+
+  // Exploded Packout
+  packout_steps: PackoutStep[]
+}
+
+export interface RecommendationRun {
+  run_id: string
+  project_id: string
+  created_at: string
+  model_name: string
+  is_ai_reasoned: boolean
+
+  recommended: RecommendedCandidate
+  alternatives: RecommendedCandidate[]
+  rejected_candidates: RejectedCandidate[]
+
+  explanation: string
+  confidence_level: 'High' | 'Medium' | 'Low'
+  confidence_reason: string
+  assumptions: string[]
+  missing_data: string[]
+  test_plan: string[]
+
+  locked_fields: Record<string, any>
+  refinement_history: Array<Record<string, any>>
+  user_feedback?: {
+    status: 'accepted' | 'rejected'
+    reason?: string
+    timestamp: string
+  } | null
 }

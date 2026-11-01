@@ -54,6 +54,8 @@ class Exporter:
             file_path = self.report_gen.generate_html(project_data, file_name=file_name)
         elif fmt == "json":
             file_path = self.report_gen.generate_json(project_data, file_name=file_name)
+        elif fmt == "dxf":
+            file_path = self.generate_dxf_dieline(project_data, file_name=file_name)
         else:
             raise ValueError(f"Unsupported report export format: {format_type}")
 
@@ -102,6 +104,55 @@ class Exporter:
             is_valid=val.is_valid,
             validation_notes=val.errors + val.warnings,
         )
+
+    def generate_dxf_dieline(self, project_data: dict[str, Any], file_name: str) -> str:
+        """
+        Generate FEFCO 0201 standard carton dieline in ASCII DXF format.
+        Produces distinct CUT (solid border) and CREASE (fold lines) layers.
+        """
+        opt = project_data.get("optimization_result", {})
+        rec = opt.get("recommended") or {}
+        l = float(rec.get("outer_length_mm") or 500.0)
+        w = float(rec.get("outer_width_mm") or 350.0)
+        h = float(rec.get("outer_height_mm") or 400.0)
+
+        flap_h = w / 2.0
+        glue_w = 35.0
+        total_w = glue_w + 2 * l + 2 * w
+        total_h = h + 2 * flap_h
+
+        lines: list[tuple[float, float, float, float, str]] = []
+        # Outer CUT boundary
+        lines.append((0.0, 0.0, total_w, 0.0, "CUT"))
+        lines.append((total_w, 0.0, total_w, total_h, "CUT"))
+        lines.append((total_w, total_h, 0.0, total_h, "CUT"))
+        lines.append((0.0, total_h, 0.0, 0.0, "CUT"))
+
+        # CREASE lines: Top and Bottom flaps
+        lines.append((0.0, flap_h, total_w, flap_h, "CREASE"))
+        lines.append((0.0, flap_h + h, total_w, flap_h + h, "CREASE"))
+
+        # CREASE lines: Panel folds
+        x_positions = [glue_w, glue_w + l, glue_w + l + w, glue_w + 2 * l + w]
+        for xp in x_positions:
+            lines.append((xp, flap_h, xp, flap_h + h, "CREASE"))
+            # Flap slits on CUT layer
+            lines.append((xp, 0.0, xp, flap_h, "CUT"))
+            lines.append((xp, flap_h + h, xp, total_h, "CUT"))
+
+        # Build ASCII DXF
+        dxf_parts = ["0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n"]
+        for x1, y1, x2, y2, layer in lines:
+            dxf_parts.append(
+                f"0\nLINE\n8\n{layer}\n10\n{x1:.2f}\n20\n{y1:.2f}\n30\n0.0\n11\n{x2:.2f}\n21\n{y2:.2f}\n31\n0.0\n"
+            )
+        dxf_parts.append("0\nENDSEC\n0\nEOF\n")
+
+        file_path = self.export_dir / file_name
+        with open(file_path, "w", encoding="ascii") as f:
+            f.write("".join(dxf_parts))
+
+        return str(file_path.resolve())
 
     def cleanup_old_exports(self, max_age_hours: Optional[int] = None) -> int:
         """Remove exports older than configured max age."""

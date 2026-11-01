@@ -1,53 +1,63 @@
 """
-Tests for Fetch Service (offline fixtures and deterministic parsing).
-Never calls live network in unit tests.
+Tests for Dynamic Product Search & Fetch Pipeline.
+Tests query normalization, SSRF protection, fuzzy typo matching ('Did you mean?'),
+and candidate generation without external network calls.
 """
 
-from app.services.fetch_service import fetch_product_data, _normalize_model
-from app.schemas.schemas import SourceType
+from app.services.fetch_service import (
+    search_product_pipeline,
+    normalize_query_string,
+    levenshtein_distance,
+    is_ssrf_safe_url,
+)
+from app.schemas.schemas import ProductSearchRequest, SourceType
 
 
-def test_fetch_tsf16w_offline_fixture():
-    result = fetch_product_data(model_number="TSF-16W")
-    assert result.success is True
-    assert result.source_type == SourceType.EL_ARABY_DATASHEET
-    assert "otto.de" in (result.source_url or "")
-
-    field_map = {f.field_name: f.value for f in result.fields}
-    assert field_map.get("model") == "TSF-16W"
-    assert field_map.get("net_weight_kg") == 7.3
-    assert field_map.get("carton_outer_length_mm") == 575.0
-    assert field_map.get("carton_outer_width_mm") == 310.0
-    assert field_map.get("carton_outer_height_mm") == 490.0
-
-    # Ensure unresolved fields explicitly list what must be measured
-    assert any("board_thickness" in u.lower() for u in result.unresolved_fields)
-    assert any("packed_component" in u.lower() for u in result.unresolved_fields)
+def test_query_normalization():
+    assert normalize_query_string("tsf-16w") == "TSF16W"
+    assert normalize_query_string("  tsf - 16 w ") == "TSF16W"
+    assert normalize_query_string("BL500/2") == "BL5002"
+    assert normalize_query_string("bl-500/2") == "BL5002"
 
 
-def test_fetch_bl500_offline_fixture():
-    result = fetch_product_data(model_number="BL500/2")
-    assert result.success is True
-    assert result.source_type == SourceType.EL_ARABY_WEBSITE
-    assert "elarabygroup.com" in (result.source_url or "")
-
-    field_map = {f.field_name: f.value for f in result.fields}
-    assert field_map.get("model") == "BL500/2"
-    assert field_map.get("power_watts") == 500
-    assert field_map.get("net_weight_kg") == 2.6
-
-    # Product and carton dimensions are not on the web page and must be unresolved
-    assert any("carton_dimensions" in u.lower() for u in result.unresolved_fields)
-    assert any("assembled_dimensions" in u.lower() for u in result.unresolved_fields)
+def test_ssrf_protection():
+    assert is_ssrf_safe_url("http://127.0.0.1/admin") is False
+    assert is_ssrf_safe_url("http://localhost:8000/api") is False
+    assert is_ssrf_safe_url("http://192.168.1.1/") is False
+    assert is_ssrf_safe_url("http://10.0.0.1/secret") is False
+    assert is_ssrf_safe_url("ftp://example.com/file") is False
 
 
-def test_fetch_unknown_model_returns_clear_error():
-    result = fetch_product_data(model_number="NONEXISTENT-999")
-    assert result.success is False
-    assert "not in the offline fixture library" in (result.error or "")
+def test_levenshtein_distance():
+    assert levenshtein_distance("TSD16W", "TSF16W") == 1
+    assert levenshtein_distance("FAN", "FAN") == 0
+    assert levenshtein_distance("BL500", "BL5002") == 1
 
 
-def test_model_normalization():
-    assert _normalize_model("tsf-16w") == "TSF16W"
-    assert _normalize_model("BL500/2") == "BL5002"
-    assert _normalize_model("  tsf - 16 w ") == "TSF16W"
+def test_search_typo_correction_tsd_16w():
+    """Typing 'tsd-16w' triggers typo correction suggesting 'TSF-16W'."""
+    req = ProductSearchRequest(query="tsd-16w")
+    res = search_product_pipeline(req)
+    assert res.did_you_mean == "TSF-16W"
+    assert len(res.candidates) >= 1
+    cand = res.candidates[0]
+    assert cand.model == "TSF-16W"
+    assert cand.brand == "Tornado"
+
+
+def test_search_exact_match_bl500():
+    req = ProductSearchRequest(query="BL500/2")
+    res = search_product_pipeline(req)
+    assert len(res.candidates) >= 1
+    cand = res.candidates[0]
+    assert "BL500/2" in cand.model
+    assert cand.brand == "Tornado"
+
+
+def test_search_unknown_query_creates_structured_candidate():
+    req = ProductSearchRequest(query="CUSTOM-FAN-99", brand="Tornado")
+    res = search_product_pipeline(req)
+    assert len(res.candidates) >= 1
+    cand = res.candidates[0]
+    assert cand.model == "CUSTOM-FAN-99"
+    assert cand.brand == "Tornado"

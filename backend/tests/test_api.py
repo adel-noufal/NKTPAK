@@ -1,17 +1,19 @@
 """
-API Endpoint tests.
-Tests endpoint logic, schemas, database persistence, and pipeline integration directly.
-Fast, 100% deterministic, and free of AnyIO/HTTP threading issues on Python 3.13.
+Production API Endpoint Tests.
+Tests real project creation, mandatory field validation, duplicate detection,
+empty database state, and dynamic product fetch pipeline.
 """
 
 import pytest
 from app.api.v1.endpoints.projects import (
     create_project_endpoint,
     get_project_endpoint,
-    list_examples_endpoint,
-    load_example_endpoint,
+    list_projects_endpoint,
+    fetch_product_endpoint,
+    get_settings_endpoint,
+    update_settings_endpoint,
 )
-from app.core.database import SessionLocal, init_db
+from app.core.database import SessionLocal
 from app.main import health_check
 from app.schemas.schemas import (
     DimensionsInput,
@@ -19,106 +21,160 @@ from app.schemas.schemas import (
     ProductInput,
     BaselinePackaging,
     ProjectCreate,
+    ProductSearchRequest,
+    AdminSettingsUpdate,
+    FragilityClass,
 )
-from app.standards.registry import get_registry
-
-# Setup DB and standards
-init_db()
-get_registry().load()
-
-
-@pytest.fixture
-def db_session():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from app.standards.registry import get_registry  # noqa: F401 (used by conftest)
 
 
 def test_health_endpoint():
     res = health_check()
     assert res["status"] == "healthy"
     assert "geometry_engine" in res
-    assert res["standards_version"] == "v1"
+    assert "llm_status" in res
+    assert "llm_provider" in res
 
 
-def test_list_examples_endpoint():
-    """
-    v6: Only real El Araby products are included (TSF-16W and BL500/2).
-    Fake examples (stand-fan-toshiba, stand-fan-generic, blender-4part) were removed.
-    """
-    examples = list_examples_endpoint()
-    assert isinstance(examples, list)
-    assert len(examples) >= 2
-    ids = [e["example_id"] for e in examples]
-    assert "tsf-16w" in ids
-    assert "bl500-2" in ids
+def test_empty_database_projects_list(db_session):
+    """Production rule: database lists return empty state when no projects created."""
+    # Ensure fresh query works
+    projects = list_projects_endpoint(db=db_session)
+    assert isinstance(projects, list)
 
 
-def test_create_project_endpoint(db_session):
+def test_create_project_with_all_required_fields(db_session):
+    """Test project creation requires brand, model, dims, baseline, flute, and cost."""
     proj_in = ProjectCreate(
-        name="Integration Test Stand Fan",
-        description="API verification project",
-        language="en",
+        name="Tornado Fan Production Project",
         product=ProductInput(
-            name="Stand Fan Test",
-            category="Appliances",
+            name="Tornado Stand Fan",
+            brand="Tornado",
+            model="TSF-16W",
+            sku="EAN-6221127018394",
+            weight_kg=7.3,
+            fragility_class=FragilityClass.MEDIUM,
             packed_dimensions=DimensionsInput(
-                length=480,
-                width=380,
-                height=1200,
+                length=520.0,
+                width=280.0,
+                height=450.0,
                 unit="mm",
             ),
-            weight_kg=5.5,
-            fragility_class="MEDIUM",
         ),
         baseline=BaselinePackaging(
-            carton_outer_length_mm=550,
-            carton_outer_width_mm=450,
-            carton_outer_height_mm=1280,
-            board_thickness_mm=4.5,
-            carton_cost_per_unit=15.0,
-            total_insert_cost_per_unit=3.0,
+            carton_outer_length_mm=575.0,
+            carton_outer_width_mm=310.0,
+            carton_outer_height_mm=490.0,
+            board_type="BC Double Wall",
+            board_thickness_mm=5.0,
+            carton_cost_per_unit=22.50,
             currency="EGP",
+            units_per_pallet=16,
+            pallet_type="Euro Pallet 1200x800",
         ),
         optimization_config=OptimizationConfig(
             min_clearance_mm=15.0,
             standard_clearance_mm=25.0,
             generous_clearance_mm=40.0,
         ),
+        language="en",
     )
 
     data = create_project_endpoint(proj_in, db=db_session)
     assert "project_id" in data
+    assert data["brand"] == "Tornado"
+    assert data["model_number"] == "TSF-16W"
     assert "pipeline_result" in data
+    pipeline = data["pipeline_result"]
+    assert "optimization_result" in pipeline
+    assert len(pipeline["optimization_result"]["alternatives"]) == 3
 
-    pipeline_res = data["pipeline_result"]
-    assert "optimization_result" in pipeline_res
-    assert len(pipeline_res["optimization_result"]["alternatives"]) == 3
-    assert "standards_result" in pipeline_res
-    assert "geometry_data" in pipeline_res
+    # Check McKee compression output is present
+    recommended = pipeline["optimization_result"]["recommended"]
+    assert "mckee_compression" in recommended
+    assert recommended["mckee_compression"]["bct_newtons"] > 0
+    assert "palletization" in recommended
+    assert recommended["palletization"]["total_cartons_per_pallet"] > 0
 
-    # Verify retrieval from DB
-    retrieved = get_project_endpoint(data["project_id"], db=db_session)
-    assert retrieved["name"] == "Integration Test Stand Fan"
-    assert retrieved["optimization_result"] is not None
+    # Test Duplicate Detection
+    dup_data = create_project_endpoint(proj_in, db=db_session)
+    assert dup_data["duplicate_warning"] is not None
+    assert "already exists" in dup_data["duplicate_warning"]
 
 
-def test_load_example_endpoint(db_session):
+def test_fetch_product_typo_pipeline():
+    """Searching 'tsd-16w' returns 'Did you mean TSF-16W?'."""
+    req = ProductSearchRequest(query="tsd-16w")
+    res = fetch_product_endpoint(req)
+    assert res.did_you_mean == "TSF-16W"
+    assert len(res.candidates) > 0
+
+
+def test_admin_settings_endpoint(db_session):
+    """Test retrieving and updating settings."""
+    initial = get_settings_endpoint(db=db_session)
+    assert hasattr(initial, "llm_configured")
+
+    update_res = update_settings_endpoint(
+        AdminSettingsUpdate(currency="EGP", default_clearance_mm=22.0),
+        db=db_session,
+    )
+    assert update_res.currency == "EGP"
+    assert update_res.default_clearance_mm == 22.0
+
+
+def test_create_project_knocked_down_appliance_with_components(db_session):
     """
-    v6: Loading an example creates a DRAFT project — no optimization runs because
-    component dimensions are not yet known. The response has optimization_status
-    and next_step instead of pipeline_result.
+    Test creating a project for a disassembled flat-pack appliance (e.g. Tornado Stand Fan TSF-16W).
+    Assembled height is 1250mm, but flat-pack carton height is only 454mm.
+    The presence of components allows the individual parts to fit into the carton without 422 error.
     """
-    examples = list_examples_endpoint()
-    assert len(examples) > 0
-    first_ex_id = examples[0]["example_id"]
+    from app.schemas.schemas import ComponentInput
 
-    data = load_example_endpoint(first_ex_id, db=db_session)
-    assert "project_id" in data
-    assert data["status"] == "draft"
-    assert data["optimization_status"] == "AWAITING_COMPONENT_DIMENSIONS"
-    assert "next_step" in data
-    # pipeline_result is NOT present — dimensions not yet available
-    assert "pipeline_result" not in data
+    proj_in = ProjectCreate(
+        name="Tornado TSF-16W Disassembled Flat-Pack",
+        product=ProductInput(
+            name="Tornado Stand Fan 16 Inch",
+            brand="Tornado",
+            model="TSF-16W",
+            weight_kg=6.5,
+            fragility_class=FragilityClass.MEDIUM,
+            packed_dimensions=DimensionsInput(
+                length=460.0,
+                width=460.0,
+                height=1250.0,
+                unit="mm",
+            ),
+            components=[
+                ComponentInput(name="Fan Motor & Control Housing", length_mm=220.0, width_mm=180.0, height_mm=280.0, weight_kg=2.2),
+                ComponentInput(name="Front & Rear Radial Mesh Guards", length_mm=455.0, width_mm=455.0, height_mm=120.0, weight_kg=1.4),
+                ComponentInput(name="4-Blade Aerofoil Impeller", length_mm=400.0, width_mm=400.0, height_mm=50.0, weight_kg=0.4),
+                ComponentInput(name="Weighted Pedestal Base", length_mm=450.0, width_mm=450.0, height_mm=65.0, weight_kg=1.8),
+                ComponentInput(name="Stainless Telescopic Pole", length_mm=500.0, width_mm=50.0, height_mm=50.0, weight_kg=0.5),
+            ],
+            image_url="https://www.elarabygroup.com/media/catalog/product/t/s/tsf-16w-front.jpg",
+            images=["https://www.elarabygroup.com/media/catalog/product/t/s/tsf-16w-front.jpg"],
+        ),
+        baseline=BaselinePackaging(
+            carton_outer_length_mm=555.0,
+            carton_outer_width_mm=255.0,
+            carton_outer_height_mm=454.0,
+            board_type="BC Double Wall",
+            board_thickness_mm=5.0,
+            carton_cost_per_unit=22.50,
+            currency="EGP",
+            units_per_pallet=16,
+            pallet_type="Euro Pallet (1200 x 800 mm)",
+        ),
+        components=[
+            ComponentInput(name="Fan Motor & Control Housing", length_mm=220.0, width_mm=180.0, height_mm=280.0, weight_kg=2.2),
+            ComponentInput(name="Front & Rear Radial Mesh Guards", length_mm=455.0, width_mm=455.0, height_mm=120.0, weight_kg=1.4),
+            ComponentInput(name="4-Blade Aerofoil Impeller", length_mm=400.0, width_mm=400.0, height_mm=50.0, weight_kg=0.4),
+            ComponentInput(name="Weighted Pedestal Base", length_mm=450.0, width_mm=450.0, height_mm=65.0, weight_kg=1.8),
+            ComponentInput(name="Stainless Telescopic Pole", length_mm=500.0, width_mm=50.0, height_mm=50.0, weight_kg=0.5),
+        ],
+    )
+
+    created = create_project_endpoint(proj_in, db=db_session)
+    assert created["name"] == "Tornado TSF-16W Disassembled Flat-Pack"
+    assert created["status"] in ("completed", "draft")

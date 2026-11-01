@@ -1,48 +1,67 @@
 """
-Tests for Assistant Service (rule-based offline analysis and citation tracking).
+Tests for Assistant Service (Production: real tool calling, honest unconfigured state, zero canned fake answers).
+All tests mock the DB and LLM network calls so no real API key or network is required.
 """
 
-from app.services.assistant_service import get_assistant_reply
+from unittest.mock import patch
+from app.services.assistant_service import (
+    get_assistant_reply,
+    tool_calculate_mckee,
+)
 
 
-def test_assistant_offline_no_project():
-    res = get_assistant_reply("Hello")
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _mock_llm_config_no_key():
+    """Return a config with an empty API key (unconfigured state)."""
+    return {"provider": "gemini", "api_key": "", "model": "gemini-1.5-flash"}
+
+
+def _mock_llm_config_with_key():
+    """Return a config with a dummy Anthropic key (online state, no real call)."""
+    return {"provider": "anthropic", "api_key": "sk-ant-test-fake", "model": "claude-3-5-sonnet-20241022"}
+
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+def test_assistant_unconfigured_honest_notice():
+    """When no API key is configured, assistant must return explicit unconfigured status — never canned fake text."""
+    with patch("app.services.assistant_service.get_llm_config", side_effect=_mock_llm_config_no_key):
+        res = get_assistant_reply("What is the volume utilization?")
     assert res.mode == "offline"
-    assert "don't have project data" in res.reply
+    assert "AI Assistant is not configured" in res.reply
+    assert "Settings" in res.reply
 
 
-def test_assistant_offline_what_is_missing():
-    project_data = {
-        "product": {"name": "Tornado Stand Fan TSF-16W"},
-        "baseline": {"carton_outer_length_mm": 575},
-        "optimization_result": None,
-    }
-    res = get_assistant_reply("What is missing?", project_data=project_data)
-    assert res.mode == "offline"
-    assert "Missing data" in res.reply
-    assert "Fragility class" in res.reply or "dimensions" in res.reply
+def test_tool_calculate_mckee():
+    """Verify the McKee compression formula calculation tool."""
+    # BCT = 5.876 * ECT * sqrt(Perimeter * Thickness)
+    # ECT = 6.5 kN/m, Perimeter = 1600 mm, Thickness = 4.0 mm
+    # sqrt(1600 * 4) = 80
+    # BCT = 5.876 * 6.5 * 80 = 3055.52 N
+    result = tool_calculate_mckee(ect_kn_m=6.5, perimeter_mm=1600.0, thickness_mm=4.0)
+    assert "bct_newtons" in result
+    assert "bct_kgf" in result
+    assert abs(result["bct_newtons"] - 3055.5) < 1.0
+    assert result["safe_load_at_safety_factor_4_5"] > 0
 
 
-def test_assistant_offline_volume_utilization():
-    project_data = {
-        "product": {"name": "Fan"},
-        "optimization_result": {
-            "recommended": {
-                "outer_length_mm": 500,
-                "outer_width_mm": 400,
-                "outer_height_mm": 300,
-                "savings": {"volume_utilization_pct": 68.5},
-            }
-        },
-    }
-    res = get_assistant_reply("What is the volume utilization?", project_data=project_data)
-    assert res.mode == "offline"
-    assert "68.5%" in res.reply
-    assert "savings.volume_utilization_pct" in res.fields_cited
+def test_get_llm_config_defaults():
+    """Verify LLM config loading returns the expected keys."""
+    from app.services.assistant_service import get_llm_config
+    cfg = get_llm_config()
+    assert "provider" in cfg
+    assert "model" in cfg
+    assert "api_key" in cfg
 
 
-def test_assistant_offline_iso_explanation():
-    res = get_assistant_reply("Explain ISO compliance standards", project_data={"product": {"name": "Test"}})
-    assert res.mode == "offline"
-    assert "Physical-test standards" in res.reply
-    assert "NEVER return PASS" in res.reply
+@patch("app.services.assistant_service.call_anthropic_claude")
+def test_assistant_online_with_key(mock_claude):
+    """When API key is provided, assistant invokes the provider and returns ai mode."""
+    mock_claude.return_value = "Based on McKee formula, the recommended ECT is 6.5 kN/m."
+    with patch("app.services.assistant_service.get_llm_config", side_effect=_mock_llm_config_with_key):
+        res = get_assistant_reply("How strong should the carton be?")
+    assert res.mode == "ai"
+    assert "Based on McKee formula" in res.reply
+    assert res.provider_name == "anthropic"
+    mock_claude.assert_called_once()

@@ -2,14 +2,14 @@
 Tests for Upload Service (CAD / 3D format parsing and error handling).
 """
 
-from app.services.upload_service import parse_uploaded_file, _dwg_error
+from app.services.upload_service import parse_uploaded_file
 
 
 def test_dwg_returns_honest_error():
     res = parse_uploaded_file("drawing.dwg", b"fake binary dwg content")
     assert res.success is False
     assert res.file_type == "dwg"
-    assert "DWG files cannot be read by free open-source libraries" in (res.error or "")
+    assert "DWG is a proprietary closed binary format" in (res.error or "")
     assert "DXF or STEP" in (res.error or "")
 
 
@@ -18,13 +18,13 @@ def test_file_size_limit_exceeded():
     huge_bytes = b"x" * (51 * 1024 * 1024)
     res = parse_uploaded_file("huge.stl", huge_bytes)
     assert res.success is False
-    assert "too large" in (res.error or "")
+    assert "exceeds maximum allowed size" in (res.error or "").lower()
 
 
 def test_unsupported_format():
     res = parse_uploaded_file("model.xyz", b"some bytes")
     assert res.success is False
-    assert "Unsupported file format" in (res.error or "")
+    assert "unsupported format" in (res.error or "").lower()
 
 
 def test_stl_box_parsing():

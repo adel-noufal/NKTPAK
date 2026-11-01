@@ -30,17 +30,18 @@ const IconStandards = () => (
   </svg>
 )
 
+const IconSettings = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+
 const IconUpload = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-  </svg>
-)
-
-const IconAssistant = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
   </svg>
 )
 
@@ -52,17 +53,18 @@ export const Sidebar: React.FC = () => {
     { to: '/projects/new', label: t('nav.newProject', 'New Project'), icon: <IconPlus />, end: false },
     { to: '/projects', label: t('nav.projects', 'Projects'), icon: <IconFolder />, end: true },
     { to: '/standards', label: t('nav.standards', 'ISO Standards'), icon: <IconStandards />, end: false },
+    { to: '/settings', label: t('nav.settings', 'Settings'), icon: <IconSettings />, end: false },
   ]
 
-  const activeClass = 'bg-blue-600 text-white shadow-sm'
-  const inactiveClass = 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+  const activeClass = 'bg-stone-800 dark:bg-stone-200 text-white dark:text-stone-900 shadow-sm'
+  const inactiveClass = 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
 
   return (
-    <aside className="w-56 border-e border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex flex-col justify-between py-4 px-3 hidden md:flex shrink-0">
+    <aside className="w-56 border-e border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 flex flex-col justify-between py-4 px-3 hidden md:flex shrink-0">
       <div className="space-y-6">
         {/* Main nav */}
         <nav className="space-y-0.5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 mb-2">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 px-2 mb-2">
             Workspace
           </div>
           {navItems.map((item) => (
@@ -82,12 +84,11 @@ export const Sidebar: React.FC = () => {
           ))}
         </nav>
 
-        {/* Tools — working features */}
+        {/* Tools */}
         <div className="space-y-0.5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 mb-2">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 px-2 mb-2">
             Tools
           </div>
-          {/* Upload 3D/CAD — available in New Project flow */}
           <NavLink
             to="/projects/new?start=upload"
             className={({ isActive }) =>
@@ -99,38 +100,9 @@ export const Sidebar: React.FC = () => {
             <IconUpload />
             <span>Upload 3D / CAD</span>
           </NavLink>
-
-          {/* AI Assistant — available within any project */}
-          <NavLink
-            to="/projects"
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
-                isActive ? activeClass : inactiveClass
-              }`
-            }
-            title="Open a project to use the assistant"
-          >
-            <IconAssistant />
-            <span>AI Assistant</span>
-          </NavLink>
-        </div>
-      </div>
-
-      {/* Engine status */}
-      <div className="bg-white dark:bg-slate-950/80 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 space-y-1">
-        <div className="flex items-center justify-between">
-          <span>Geometry</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">trimesh</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span>Standards</span>
-          <span className="text-blue-600 dark:text-blue-400">ISO Registry v1</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span>LLM</span>
-          <span className="text-slate-400">offline</span>
         </div>
       </div>
     </aside>
   )
 }
+export default Sidebar

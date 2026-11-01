@@ -1,349 +1,289 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listProjects, listExamples, loadExample, deleteProject } from '../api/projects'
-import type { ExampleProject } from '../types'
-
-// ── Source badge ──────────────────────────────────────────────
-
-const SourceBadge: React.FC<{ sourceType?: string }> = ({ sourceType }) => {
-  const labels: Record<string, { label: string; className: string }> = {
-    EL_ARABY_DATASHEET: { label: 'El Araby Datasheet', className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-    EL_ARABY_WEBSITE: { label: 'El Araby Website', className: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' },
-    DERIVED: { label: 'Derived', className: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
-    USER_ENTERED: { label: 'User Entered', className: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
-  }
-  const def = labels[sourceType ?? ''] ?? { label: sourceType ?? 'Unknown', className: 'bg-slate-100 dark:bg-slate-800 text-slate-500' }
-  return (
-    <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${def.className}`}>
-      {def.label}
-    </span>
-  )
-}
-
-// ── Example Card ──────────────────────────────────────────────
-
-const ExampleCard: React.FC<{
-  example: ExampleProject
-  onLoad: () => void
-  loading: boolean
-}> = ({ example, onLoad, loading }) => (
-  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3 hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
-    <div className="flex items-start justify-between gap-2">
-      <div>
-        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">
-          {example.example_name}
-        </h3>
-        {example.model && (
-          <p className="text-xs text-slate-500 font-mono mt-0.5">{example.model}</p>
-        )}
-      </div>
-      <SourceBadge sourceType={example.source_type} />
-    </div>
-
-    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-      {example.description}
-    </p>
-
-    {example.available_fields && example.available_fields.length > 0 && (
-      <div className="space-y-1">
-        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-          Available
-        </p>
-        <div className="flex flex-wrap gap-1">
-          {example.available_fields.slice(0, 6).map((f) => (
-            <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-              {f}
-            </span>
-          ))}
-        </div>
-      </div>
-    )}
-
-    {example.missing_fields && example.missing_fields.length > 0 && (
-      <div className="space-y-1">
-        <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-wider">
-          Not available — must be measured
-        </p>
-        <div className="flex flex-wrap gap-1">
-          {example.missing_fields.slice(0, 4).map((f) => (
-            <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-              {f}
-            </span>
-          ))}
-          {example.missing_fields.length > 4 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400">
-              +{example.missing_fields.length - 4} more
-            </span>
-          )}
-        </div>
-      </div>
-    )}
-
-    <button
-      type="button"
-      onClick={onLoad}
-      disabled={loading}
-      className="w-full py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-    >
-      {loading ? 'Loading…' : 'Load as Draft Project'}
-    </button>
-  </div>
-)
-
-// ── Project Row ───────────────────────────────────────────────
-
-const ProjectRow: React.FC<{
-  project: any
-  onDelete: () => void
-  deleting: boolean
-}> = ({ project, onDelete, deleting }) => {
-  const navigate = useNavigate()
-  const statusColors: Record<string, string> = {
-    draft: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20',
-    completed: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20',
-    failed: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20',
-  }
-  const statusClass = statusColors[project.status] ?? 'text-slate-500 bg-slate-100 dark:bg-slate-800'
-
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-      <td className="py-3 px-4">
-        <button
-          type="button"
-          onClick={() => navigate(`/projects/${project.project_id}`)}
-          className="text-sm font-medium text-slate-800 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 text-left"
-        >
-          {project.name}
-        </button>
-        {project.product_name && (
-          <p className="text-xs text-slate-400 mt-0.5">
-            {project.product_name}
-            {project.product_model && <span className="font-mono ml-1">({project.product_model})</span>}
-          </p>
-        )}
-      </td>
-      <td className="py-3 px-4">
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusClass}`}>
-          {project.status}
-        </span>
-      </td>
-      <td className="py-3 px-4 text-xs text-slate-400">
-        {project.has_results ? (
-          <span className="text-emerald-600 dark:text-emerald-400">Results ready</span>
-        ) : (
-          <span className="text-slate-400">No results yet</span>
-        )}
-      </td>
-      <td className="py-3 px-4 text-xs text-slate-400">
-        {new Date(project.updated_at).toLocaleDateString()}
-      </td>
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(`/projects/${project.project_id}`)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Open
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 disabled:opacity-40"
-          >
-            Delete
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
-}
-
-// ── Dashboard ─────────────────────────────────────────────────
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { listProjects, deleteProject, getBrands } from '../api/projects'
 
 export const Dashboard: React.FC = () => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: projects = [], isLoading: loadingProjects } = useQuery({
-    queryKey: ['projects'],
-    queryFn: listProjects,
+  const [search, setSearch] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const { data: brands = [] } = useQuery({
+    queryKey: ['brands'],
+    queryFn: getBrands,
   })
 
-  const { data: examples = [], isLoading: loadingExamples } = useQuery({
-    queryKey: ['examples'],
-    queryFn: listExamples,
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: ['projects', search, selectedBrand],
+    queryFn: () => listProjects({ search: search || undefined, brand: selectedBrand || undefined }),
   })
 
-  const [loadingExampleId, setLoadingExampleId] = React.useState<string | null>(null)
-  const [deletingId, setDeletingId] = React.useState<string | null>(null)
-
-  const handleLoadExample = async (exampleId: string) => {
-    try {
-      setLoadingExampleId(exampleId)
-      const res = await loadExample(exampleId)
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-      navigate(`/projects/${res.project_id}`)
-    } catch (err: any) {
-      alert(`Could not load example: ${err.message}`)
-    } finally {
-      setLoadingExampleId(null)
-    }
-  }
-
-  const handleDelete = async (projectId: string) => {
-    if (!confirm('Delete this project? This cannot be undone.')) return
+  const handleDelete = async (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(t('dashboard.confirmDelete', 'Delete this packaging project? This cannot be undone.'))) return
     try {
       setDeletingId(projectId)
       await deleteProject(projectId)
       queryClient.invalidateQueries({ queryKey: ['projects'] })
     } catch (err: any) {
-      alert(`Delete failed: ${err.message}`)
+      alert(`Delete failed: ${err?.message || err}`)
     } finally {
       setDeletingId(null)
     }
   }
 
+  const statusColors: Record<string, string> = {
+    draft: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800',
+    completed: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800',
+    failed: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800',
+  }
+
   return (
-    <div className="space-y-10 pb-16">
+    <div className="space-y-8 pb-16 max-w-7xl mx-auto px-4 sm:px-6">
       {/* Header */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-          NxtPak AI
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Parametric packaging optimization for El Araby Group.
-          Recommends right-sized cartons, shows 3D interior/exterior fit, and evaluates against ISO packaging standards.
-        </p>
-      </div>
-
-      {/* Start options */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          {
-            title: 'Load a real product',
-            desc: 'Start from TSF-16W or BL500/2 with verified El Araby data.',
-            action: () => {},  // handled below by example cards
-            disabled: true,
-          },
-          {
-            title: 'Enter manually',
-            desc: 'Enter product dimensions, weight, and baseline carton yourself.',
-            action: () => navigate('/projects/new?start=manual'),
-            disabled: false,
-          },
-          {
-            title: 'Fetch from El Araby',
-            desc: 'Enter a model number or URL to auto-fetch known product data.',
-            action: () => navigate('/projects/new?start=fetch'),
-            disabled: false,
-          },
-          {
-            title: 'Upload 3D / CAD',
-            desc: 'Upload STL, OBJ, GLB, STEP, or DXF to extract dimensions.',
-            action: () => navigate('/projects/new?start=upload'),
-            disabled: false,
-          },
-        ].map((opt) => (
-          <button
-            key={opt.title}
-            type="button"
-            onClick={opt.action}
-            disabled={opt.disabled}
-            className={`text-left p-4 rounded-lg border transition-all ${
-              opt.disabled
-                ? 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 opacity-60 cursor-default'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm'
-            }`}
-          >
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">{opt.title}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{opt.desc}</p>
-          </button>
-        ))}
-      </div>
-
-      {/* Reference examples */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
-            Reference Products
-            <span className="ml-2 text-xs font-normal text-slate-400">Real El Araby data only</span>
-          </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+            {t('dashboard.title', 'Packaging Optimization Dashboard')}
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {t('dashboard.subtitle', 'Right-size packaging, evaluate McKee compression strength, optimize palletization, and verify ISO standards.')}
+          </p>
         </div>
 
-        {loadingExamples ? (
-          <p className="text-sm text-slate-400">Loading examples…</p>
-        ) : examples.length === 0 ? (
-          <p className="text-sm text-slate-400">No reference products available.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {examples.map((ex) => (
-              <ExampleCard
-                key={ex.example_id}
-                example={ex}
-                onLoad={() => handleLoadExample(ex.example_id)}
-                loading={loadingExampleId === ex.example_id}
-              />
-            ))}
-          </div>
-        )}
-
-        <p className="text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-3 py-2">
-          Reference products use real data from El Araby datasheets and product pages.
-          Fields marked "Not available" are genuinely unknown — they must be measured on site before optimization can run.
-          No values are invented.
-        </p>
-      </div>
-
-      {/* Projects table */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
-            Your Projects
-          </h2>
+        <div className="flex items-center gap-2.5">
+          <Link
+            to="/projects/new?start=fetch"
+            className="px-3.5 py-2 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span>{t('dashboard.fetchProductBtn', 'Fetch Product from Web')}</span>
+          </Link>
           <Link
             to="/projects/new"
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            className="px-3.5 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition-colors flex items-center gap-1.5"
           >
-            New project
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>{t('actions.newProject', 'Create New Project')}</span>
           </Link>
         </div>
+      </div>
 
-        {loadingProjects ? (
-          <p className="text-sm text-slate-400">Loading projects…</p>
+      {/* Workflow Quick Links */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/projects/new?start=fetch')}
+          className="text-start p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{t('dashboard.card1Title', 'Live Web Fetch')}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+            {t('dashboard.card1Desc', 'Search model numbers (e.g. TSF-16W) across El Araby catalog and product pages.')}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/projects/new?start=upload')}
+          className="text-start p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+          </div>
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{t('dashboard.card2Title', 'CAD / Drawing Upload')}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+            {t('dashboard.card2Desc', 'Extract 3D dimensions from STL, OBJ, 3MF, STEP, DXF, or technical drawing PDF.')}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate('/projects/new?start=manual')}
+          className="text-start p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </div>
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{t('dashboard.card3Title', 'Manual Engineering Entry')}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+            {t('dashboard.card3Desc', 'Enter product dimensions, weight, fragility class, and current baseline carton specifications.')}
+          </p>
+        </button>
+      </div>
+
+      {/* Projects Section */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            {t('dashboard.projectsSection', 'Packaging Projects')}
+          </h2>
+
+          {/* Search & Brand Filter */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('dashboard.searchPlaceholder', 'Search name, brand, model, SKU...')}
+                className="w-56 text-xs px-3 py-1.5 ps-8 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <svg className="w-3.5 h-3.5 absolute start-2.5 top-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="text-xs px-2.5 py-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">{t('dashboard.allBrands', 'All Brands')}</option>
+              {brands.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="py-16 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+            <p className="text-xs text-slate-500">{t('dashboard.loadingProjects', 'Loading projects...')}</p>
+          </div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-10 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
-            <p className="text-sm text-slate-500 dark:text-slate-400">No projects yet.</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Start from a real product above or{' '}
-              <Link to="/projects/new" className="text-blue-600 dark:text-blue-400 hover:underline">
-                enter values manually
-              </Link>.
+          /* Production empty state */
+          <div className="text-center py-16 px-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900/40">
+            <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {t('dashboard.emptyTitle', 'No packaging projects yet')}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1 mb-5">
+              {t('dashboard.emptySubtitle', 'Start a new packaging optimization project by entering specifications or fetching real product data from the web.')}
             </p>
+            <div className="flex items-center justify-center gap-3">
+              <Link
+                to="/projects/new"
+                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition-colors"
+              >
+                {t('actions.newProject', 'Create New Project')}
+              </Link>
+              <Link
+                to="/projects/new?start=fetch"
+                className="px-4 py-2 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-sm transition-colors"
+              >
+                {t('dashboard.fetchProductBtn', 'Fetch Product from Web')}
+              </Link>
+            </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-50 dark:bg-slate-800">
+          /* Projects table */
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+            <table className="w-full text-start">
+              <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Project</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Results</th>
-                  <th className="text-left px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Updated</th>
-                  <th className="px-4 py-2.5"></th>
+                  <th className="text-start px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {t('dashboard.colProject', 'Project & Model')}
+                  </th>
+                  <th className="text-start px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {t('dashboard.colBrand', 'Brand')}
+                  </th>
+                  <th className="text-start px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {t('dashboard.colStatus', 'Status')}
+                  </th>
+                  <th className="text-start px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {t('dashboard.colShortId', 'Project ID')}
+                  </th>
+                  <th className="text-start px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {t('dashboard.colCreated', 'Created')}
+                  </th>
+                  <th className="text-end px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {t('dashboard.colActions', 'Actions')}
+                  </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-slate-900">
-                {projects.map((p) => (
-                  <ProjectRow
-                    key={p.project_id}
-                    project={p}
-                    onDelete={() => handleDelete(p.project_id)}
-                    deleting={deletingId === p.project_id}
-                  />
-                ))}
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                {projects.map((p) => {
+                  const statusClass = statusColors[p.status] || 'text-slate-600 bg-slate-100 dark:bg-slate-800 border-slate-200'
+                  return (
+                    <tr
+                      key={p.project_id}
+                      onClick={() => navigate(`/projects/${p.project_id}`)}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
+                          {p.name}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                          {p.model_number || p.product_model || '—'}
+                          {p.sku ? ` · SKU: ${p.sku}` : ''}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
+                        {p.brand || '—'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border ${statusClass}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
+                        {p.project_id.slice(0, 8)}…
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
+                        {p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-end">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/projects/${p.project_id}`)
+                            }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                          >
+                            {t('actions.open', 'Open')}
+                          </button>
+                          <span className="text-slate-300 dark:text-slate-700">|</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDelete(p.project_id, e)}
+                            disabled={deletingId === p.project_id}
+                            className="text-xs text-rose-600 hover:text-rose-700 dark:hover:text-rose-400 font-medium disabled:opacity-40"
+                          >
+                            {deletingId === p.project_id ? t('actions.deleting', 'Deleting...') : t('actions.delete', 'Delete')}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -352,3 +292,4 @@ export const Dashboard: React.FC = () => {
     </div>
   )
 }
+export default Dashboard

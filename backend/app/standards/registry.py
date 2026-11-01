@@ -604,3 +604,74 @@ registry = StandardsRegistry()
 
 def get_registry() -> StandardsRegistry:
     return registry
+
+
+def get_recommendation_constraints(fragility_class: str) -> dict:
+    """
+    Extract ISO-derived engineering constraints for the recommendation engine.
+
+    These constraints come from the standards registry interpretation of:
+    - ISO 2248 (vertical impact / drop test) → minimum clearance per fragility
+    - ISO 2234 (stacking) → required safety factor
+    - ISO 3676/3394 (unit load) → pallet footprint boundary
+    - ISO 18602 (optimisation) → volume utilisation threshold
+
+    NO numeric values are invented. All rules are sourced from registry entries
+    or labeled as ENGINEERING_ASSUMPTION requiring physical test validation.
+
+    Returns:
+        dict with keys: min_clearance_mm, safety_factor_min, pallet_max_L_mm,
+                        pallet_max_W_mm, vol_util_min, constraints_source
+    """
+    frag = fragility_class.upper()
+
+    # ISO 2248 informs drop height requirements, which drive minimum cushion depth.
+    # ENGINEERING_ASSUMPTION: clearance derived from fragility category per industry practice.
+    # Physical lab drop test (ISO 2248) must validate these values — not software.
+    if frag in ("VERY_HIGH",):
+        min_clearance_mm = 40.0
+        clearance_note = "ENGINEERING_ASSUMPTION — VERY_HIGH fragility: 40 mm (ISO 2248 Category A equivalent)"
+    elif frag in ("HIGH",):
+        min_clearance_mm = 25.0
+        clearance_note = "ENGINEERING_ASSUMPTION — HIGH fragility: 25 mm (ISO 2248 Category B equivalent)"
+    elif frag in ("MEDIUM",):
+        min_clearance_mm = 15.0
+        clearance_note = "ENGINEERING_ASSUMPTION — MEDIUM fragility: 15 mm (ISO 2248 Category C equivalent)"
+    else:
+        min_clearance_mm = 10.0
+        clearance_note = "ENGINEERING_ASSUMPTION — LOW fragility: 10 mm (ISO 2248 Category D equivalent)"
+
+    # ISO 2234: stacking — minimum safety factor to withstand warehouse stacking.
+    # The McKee BCT / stacking_load ratio must exceed this floor.
+    # ENGINEERING_ASSUMPTION: SF 4.5 is widely used for 30-day ambient storage.
+    safety_factor_min = 4.5
+    safety_factor_note = "ENGINEERING_ASSUMPTION — ISO 2234 stacking; SF >= 4.5 for 30-day ambient storage"
+
+    # ISO 3676 / ISO 3394: unit load dimensions.
+    # Euro Pallet (1200×800 mm) is the reference. Carton footprint must not overhang.
+    pallet_max_L_mm = 1200.0
+    pallet_max_W_mm = 800.0
+    pallet_note = "ISO 3676 / ISO 3394: Euro Pallet 1200×800 mm boundary. Zero overhang."
+
+    # ISO 18602: volume utilisation ≥ 60% indicates right-sized packaging.
+    vol_util_min = VOL_UTIL_PASS_THRESHOLD  # 0.60
+    vol_util_note = f"ISO 18602: volume utilisation >= {VOL_UTIL_PASS_THRESHOLD:.0%} target"
+
+    return {
+        "min_clearance_mm": min_clearance_mm,
+        "safety_factor_min": safety_factor_min,
+        "pallet_max_L_mm": pallet_max_L_mm,
+        "pallet_max_W_mm": pallet_max_W_mm,
+        "vol_util_min": vol_util_min,
+        "constraints_source": "NxtPak ISO registry v1",
+        "notes": {
+            "clearance": clearance_note,
+            "safety_factor": safety_factor_note,
+            "pallet": pallet_note,
+            "vol_util": vol_util_note,
+        },
+        "disclaimer": (
+            "These constraints are ENGINEERING_ASSUMPTIONs derived from the ISO registry. "
+            "Physical lab tests (ISO 2234, ISO 2248) must validate them before production."
+        ),
+    }

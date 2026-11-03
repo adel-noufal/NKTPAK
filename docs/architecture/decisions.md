@@ -47,3 +47,21 @@
 - **Context:** Project evaluation and reports used a static ISO-only message and the ISTA catalog was absent from the user interface.
 - **Decision:** Seed and serve both registries from the database, calculate project applicability from stored project inputs, and leave procedure selection empty when shipping mode is unknown. Suggested physical tests contain no invented test levels and require accredited laboratory execution.
 - **Consequence:** Project tabs and reports reflect the same catalog metadata and avoid making unsupported shipping or compliance assumptions.
+
+## ADR-009: Supplier-Sourced Cushion Curves Only
+- **Status:** Accepted
+- **Context:** Cushion response depends on material, static stress, thickness, and drop height; generic values would imply protection that has not been measured.
+- **Decision:** Store editable cushioning materials and supplier curve points with source metadata. Calculate static stress from measured support loads and bearing areas, interpolate peak deceleration only within the supplied curve domain, and return no thickness when a required curve or input is absent.
+- **Consequence:** Empty catalog entries are disabled and their unknown properties remain null. Any curve-derived thickness is an estimate requiring laboratory validation.
+
+## ADR-010: Deterministic Recommendation Before Optional Reasoning
+- **Status:** Accepted
+- **Context:** Project creation previously navigated to the 3D tab and users had to trigger a separate recommendation request; an LLM request could delay calculated results.
+- **Decision:** New project creation routes directly to the recommendation view. The recommendation endpoint returns deterministic calculations first; a separate optional reasoning request updates the explanation afterward.
+- **Consequence:** Offline operation keeps a deterministic recommendation available, while AI reasoning remains optional and does not determine packaging geometry.
+
+## ADR-011: Retire Unsourced Product Catalog Records
+- **Status:** Accepted
+- **Context:** The fetch pipeline returned hardcoded product dimensions, retailer labels, and cached cards as if live sources had verified them. Those records had no auditable source evidence.
+- **Decision:** Remove the embedded product records and stop serving or saving those cached candidates. Search candidates may only be built from Gemini Google Search grounding page titles and URLs; dimensions and weights remain empty until a page fetch/parser supplies evidence. Show provider errors and return no candidates when results cannot be matched to the query.
+- **Consequence:** Searches can temporarily return no products when Gemini grounding is unavailable or yields weak titles. A crawler-backed SQLite catalogue, alternative search providers, and richer field-level evidence remain unimplemented; they must ingest real pages with provenance before being enabled.

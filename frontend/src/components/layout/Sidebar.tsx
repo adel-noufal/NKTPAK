@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 // Simple line-icon SVG components (no emoji)
@@ -47,6 +47,7 @@ const IconUpload = () => (
 
 export const Sidebar: React.FC = () => {
   const { t } = useTranslation()
+  const location = useLocation()
 
   const navItems = [
     { to: '/', label: t('nav.dashboard', 'Dashboard'), icon: <IconDashboard />, end: true },
@@ -60,7 +61,7 @@ export const Sidebar: React.FC = () => {
   const inactiveClass = 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
 
   return (
-    <aside className="w-56 border-e border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 flex flex-col justify-between py-4 px-3 hidden md:flex shrink-0">
+    <aside className="h-full w-56 border-e border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 flex flex-col justify-between py-4 px-3 hidden md:flex shrink-0 overflow-y-auto">
       <div className="space-y-6">
         {/* Main nav */}
         <nav className="space-y-0.5">
@@ -91,11 +92,9 @@ export const Sidebar: React.FC = () => {
           </div>
           <NavLink
             to="/projects/new?start=upload"
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${
-                isActive ? activeClass : inactiveClass
-              }`
-            }
+            end
+            aria-current={location.pathname === '/projects/new' && new URLSearchParams(location.search).get('start') === 'upload' ? 'page' : undefined}
+            className={({ isActive }) => `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-all ${isActive && new URLSearchParams(location.search).get('start') === 'upload' ? activeClass : inactiveClass}`}
           >
             <IconUpload />
             <span>Upload 3D / CAD</span>

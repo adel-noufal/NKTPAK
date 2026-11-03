@@ -65,3 +65,14 @@ def test_assistant_online_with_key(mock_claude):
     assert "Based on McKee formula" in res.reply
     assert res.provider_name == "anthropic"
     mock_claude.assert_called_once()
+def test_offline_assistant_answers_missing_fields_from_page_context(monkeypatch):
+    from app.services import assistant_service
+
+    monkeypatch.setattr(assistant_service, "get_llm_config", lambda: {"provider": "gemini", "api_key": "", "model": "gemini-2.5-flash"})
+    response = assistant_service.get_assistant_reply(
+        message="What required information is still missing from this project?",
+        page_context={"route": "/projects/new", "missing_fields": ["Fragility class"], "api_key": "must-not-be-used"},
+    )
+    assert response.reply == "Required information still missing: Fragility class."
+    assert response.fields_cited == ["missing_fields"]
+    assert "**" not in response.reply

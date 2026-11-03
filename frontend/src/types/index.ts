@@ -10,8 +10,9 @@ export enum FragilityClass {
   VERY_HIGH = 'VERY_HIGH',
 }
 
-export type ProductType = 'blender' | 'stand_fan' | 'ceiling_fan' | 'washing_machine' | 'refrigerator' | 'air_conditioner' | 'tv' | 'kettle' | 'microwave' | 'water_heater' | 'other'
-export const PRODUCT_TYPES: ProductType[] = ['blender', 'stand_fan', 'ceiling_fan', 'washing_machine', 'refrigerator', 'air_conditioner', 'tv', 'kettle', 'microwave', 'water_heater', 'other']
+import type { components } from '../api/generated'
+export { PRODUCT_TYPES } from '../api/product-types'
+export type ProductType = components['schemas']['ProductInput']['product_type']
 
 export enum CheckType {
   PROGRAMMATIC = 'PROGRAMMATIC',
@@ -74,38 +75,9 @@ export interface ComponentInput {
   provenance?: Provenance
 }
 
-export interface ProductInput {
-  name: string
-  brand: string
-  model: string
-  sku?: string | null
-  category?: string | null
-  product_type: ProductType
-  product_type_provenance?: Provenance
-  shipping_mode?: 'courier_parcel' | 'ltl_pallet' | 'full_truck' | 'container' | 'ecommerce_marketplace' | null
-  weight_kg: number
-  fragility_class: FragilityClass
-  packed_dimensions: DimensionsInput
-  components?: ComponentInput[]
-  image_url?: string | null
-  images?: string[]
-  provenance?: Provenance
-  notes?: string
-}
+export type ProductInput = components['schemas']['ProductInput']
 
-export interface BaselinePackaging {
-  carton_outer_length_mm: number
-  carton_outer_width_mm: number
-  carton_outer_height_mm: number
-  board_type: string
-  board_thickness_mm: number
-  carton_cost_per_unit: number
-  currency: string
-  units_per_pallet: number
-  pallet_type: string
-  notes?: string
-  provenance?: Provenance
-}
+export type BaselinePackaging = components['schemas']['BaselinePackaging']
 
 export interface PlannedPackaging {
   carton_outer_length_mm: number
@@ -124,16 +96,7 @@ export interface OptimizationConfig {
   insert_thickness_mm?: number
 }
 
-export interface ProjectCreate {
-  name: string
-  description?: string
-  product: ProductInput
-  baseline: BaselinePackaging
-  planned?: PlannedPackaging
-  components?: ComponentInput[]
-  optimization_config?: OptimizationConfig
-  language?: 'en' | 'ar'
-}
+export type ProjectCreate = components['schemas']['ProjectCreate']
 
 export interface MaterialUsage {
   carton_board_area_cm2: number
@@ -212,6 +175,7 @@ export interface PackagingAlternative {
   clearance_height_mm: number
   clearance_label?: string
   insert_thickness_mm: number
+  foam_material?: string
   insert_description: string
   material_usage: MaterialUsage
   savings: SavingsMetrics
@@ -353,8 +317,8 @@ export interface CandidateSpecsResponse {
 export interface ProductCandidate {
   candidate_id: string
   name: string
-  brand: string
-  model: string
+  brand?: string | null
+  model?: string | null
   sku?: string | null
   category?: string | null
   net_weight_kg?: number | null
@@ -379,6 +343,8 @@ export interface ProductCandidate {
 
 export interface ProductSearchRequest {
   query?: string | null
+  product_name?: string | null
+  model_number?: string | null
   brand?: string | null
   category?: string | null
   product_url?: string | null
@@ -395,6 +361,7 @@ export interface ProductSearchResponse {
   cached: boolean
   source_url_used?: string | null
   status_message: string
+  diagnostics?: Array<{ source: string; status: string; count?: number; error?: string | null; pages?: Array<{ title: string; url: string }> }>
 }
 
 export interface UploadFileResult {
@@ -488,6 +455,28 @@ export interface RecommendedCandidate {
   insert_type: string
   insert_material: string
   cushion_thickness_mm: number
+  foam_design?: {
+    material_id?: string | null
+    material_name?: string | null
+    status: 'CURVE_EVALUATED' | 'NO_CURVE' | 'INVALID_INPUT'
+    calculation_label: string
+    safety_factor?: number | null
+    drop_height_mm?: number | null
+    fragility_limit_g?: number | null
+    supports: Array<{
+      name: string
+      carried_weight_kg: number
+      bearing_area_mm2: number
+      static_stress_kpa: number
+    }>
+    selected_thickness_mm?: number | null
+    estimated_peak_deceleration_g?: number | null
+    protection_margin_g?: number | null
+    foam_volume_mm3?: number | null
+    foam_weight_kg?: number | null
+    foam_cost?: number | null
+    warnings: string[]
+  } | null
   orientation: string
   units_per_carton: number
 
@@ -495,7 +484,7 @@ export interface RecommendedCandidate {
   pallet_type: string
   cartons_per_layer: number
   layer_count: number
-  units_per_pallet: number
+  units_per_pallet?: number | null
   pallet_utilization_pct: number
   pallet_overhang_mm: number
   stacking_height_mm: number

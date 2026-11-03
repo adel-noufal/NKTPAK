@@ -5,8 +5,11 @@ import {
   updateAdminSettings,
   fetchLLMModels,
   testLLMConnection,
+  getFoamMaterials,
+  updateFoamMaterials,
 } from '../api/projects'
 import type { AdminSettingsResponse } from '../types'
+import type { FoamMaterial } from '../api/projects'
 import type { LLMTestResult } from '../api/projects'
 
 const DEFAULT_MODELS: Record<string, string[]> = {
@@ -19,6 +22,73 @@ const DEFAULT_MODELS: Record<string, string[]> = {
   ],
   gemini: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+}
+
+const FOAM_CSV_COLUMNS: Array<keyof FoamMaterial> = [
+  'material_id', 'name', 'material_type', 'density_kg_m3', 'available_thicknesses_mm',
+  'cost_per_m3', 'cost_per_kg', 'sustainability_note', 'temperature_humidity_notes',
+  'cushion_curves', 'source_name', 'source_url', 'retrieval_date', 'is_edited', 'enabled',
+]
+
+function csvCell(value: unknown): string {
+  const text = value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let quoted = false
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (quoted && char === '"' && text[index + 1] === '"') {
+      cell += '"'
+      index += 1
+    } else if (char === '"') {
+      quoted = !quoted
+    } else if (!quoted && char === ',') {
+      row.push(cell)
+      cell = ''
+    } else if (!quoted && (char === '\n' || char === '\r')) {
+      if (char === '\r' && text[index + 1] === '\n') index += 1
+      row.push(cell)
+      if (row.some((value) => value.length > 0)) rows.push(row)
+      row = []
+      cell = ''
+    } else {
+      cell += char
+    }
+  }
+  row.push(cell)
+  if (row.some((value) => value.length > 0)) rows.push(row)
+  if (quoted) throw new Error('CSV contains an unclosed quoted field.')
+  return rows
+}
+
+function foamMaterialsFromCsv(text: string): FoamMaterial[] {
+  const [header = [], ...rows] = parseCsv(text)
+  const columnIndex = new Map(header.map((value, index) => [value.trim(), index]))
+  const value = (cells: string[], key: string) => cells[columnIndex.get(key) ?? -1] ?? ''
+  const jsonValue = <T,>(raw: string, fallback: T): T => raw.trim() ? JSON.parse(raw) as T : fallback
+  const numericOrNull = (raw: string) => raw.trim() ? Number(raw) : null
+  return rows.map((cells) => ({
+    material_id: value(cells, 'material_id'),
+    name: value(cells, 'name'),
+    material_type: value(cells, 'material_type'),
+    density_kg_m3: numericOrNull(value(cells, 'density_kg_m3')),
+    available_thicknesses_mm: jsonValue(value(cells, 'available_thicknesses_mm'), []),
+    cost_per_m3: numericOrNull(value(cells, 'cost_per_m3')),
+    cost_per_kg: numericOrNull(value(cells, 'cost_per_kg')),
+    sustainability_note: value(cells, 'sustainability_note') || null,
+    temperature_humidity_notes: value(cells, 'temperature_humidity_notes') || null,
+    cushion_curves: jsonValue(value(cells, 'cushion_curves'), []),
+    source_name: value(cells, 'source_name') || null,
+    source_url: value(cells, 'source_url') || null,
+    retrieval_date: value(cells, 'retrieval_date') || null,
+    is_edited: value(cells, 'is_edited').toLowerCase() === 'true',
+    enabled: value(cells, 'enabled').toLowerCase() === 'true',
+  }))
 }
 
 export const Settings: React.FC = () => {
@@ -40,10 +110,61 @@ export const Settings: React.FC = () => {
   const [costPerM2, setCostPerM2] = useState(18.5)
   const [currency, setCurrency] = useState('EGP')
   const [isConfigured, setIsConfigured] = useState(false)
+  const [foamMaterialsText, setFoamMaterialsText] = useState('')
+  const [savingFoamMaterials, setSavingFoamMaterials] = useState(false)
 
   useEffect(() => {
     loadSettings()
+    getFoamMaterials()
+      .then((materials) => setFoamMaterialsText(JSON.stringify(materials, null, 2)))
+      .catch((err: unknown) => setMessage({
+        type: 'error',
+        text: err instanceof Error ? `Could not load foam materials: ${err.message}` : 'Could not load foam materials.',
+      }))
   }, [])
+
+  const saveFoamMaterials = async () => {
+    try {
+      setSavingFoamMaterials(true)
+      const parsed = JSON.parse(foamMaterialsText) as FoamMaterial[]
+      if (!Array.isArray(parsed)) throw new Error('Material library must be a JSON array.')
+      const saved = await updateFoamMaterials(parsed)
+      setFoamMaterialsText(JSON.stringify(saved, null, 2))
+      setMessage({ type: 'success', text: 'Foam materials and supplier curves saved.' })
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Could not save foam materials.' })
+    } finally {
+      setSavingFoamMaterials(false)
+    }
+  }
+
+  const exportFoamCsv = () => {
+    try {
+      const materials = JSON.parse(foamMaterialsText) as FoamMaterial[]
+      const csv = [
+        FOAM_CSV_COLUMNS.join(','),
+        ...materials.map((material) => FOAM_CSV_COLUMNS.map((column) => csvCell(material[column])).join(',')),
+      ].join('\r\n')
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'nxtpak-foam-materials.csv'
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Could not export foam materials.' })
+    }
+  }
+
+  const importFoamCsv = async (file: File) => {
+    try {
+      const materials = foamMaterialsFromCsv(await file.text())
+      setFoamMaterialsText(JSON.stringify(materials, null, 2))
+      setMessage({ type: 'info', text: `Loaded ${materials.length} material records. Save to persist them.` })
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? `Invalid foam CSV: ${err.message}` : 'Invalid foam CSV.' })
+    }
+  }
 
   const loadSettings = async () => {
     try {
@@ -222,6 +343,38 @@ export const Settings: React.FC = () => {
           {message.text}
         </div>
       )}
+
+      <section className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-lg p-5 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-3 dark:border-stone-800">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">{t('settings.foamLibraryTitle', 'Packaging materials and cushion curves')}</h2>
+            <p className="text-[11px] text-stone-500 dark:text-stone-400">{t('settings.foamLibraryDescription', 'Unknown properties remain null. Curve records require supplier source name, URL, and retrieval date.')}</p>
+          </div>
+          <div className="flex gap-2">
+            <label className="cursor-pointer rounded border px-3 py-1.5 text-xs dark:border-stone-700">
+              {t('settings.foamLibraryImport', 'Import CSV')}
+              <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void importFoamCsv(file)
+                event.target.value = ''
+              }} />
+            </label>
+            <button type="button" onClick={exportFoamCsv} className="rounded border px-3 py-1.5 text-xs dark:border-stone-700">{t('settings.foamLibraryExport', 'Export CSV')}</button>
+            <button type="button" onClick={() => void saveFoamMaterials()} disabled={savingFoamMaterials} className="rounded bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+              {savingFoamMaterials ? t('settings.foamLibrarySaving', 'Saving…') : t('settings.foamLibrarySave', 'Save materials')}
+            </button>
+          </div>
+        </div>
+        <textarea
+          aria-label={t('settings.foamLibraryJsonLabel', 'Foam material library JSON')}
+          value={foamMaterialsText}
+          onChange={(event) => setFoamMaterialsText(event.target.value)}
+          rows={14}
+          spellCheck={false}
+          className="w-full rounded border border-stone-300 bg-stone-50 p-3 font-mono text-[11px] text-stone-900 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100"
+        />
+        <p className="text-[10px] text-stone-500 dark:text-stone-400">{t('settings.foamLibraryHelp', 'Enter costs, density, available thicknesses, sustainability and environmental notes, and supplier curves as JSON. Disabled materials are excluded from calculations.')}</p>
+      </section>
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* AI Assistant Configuration Card */}

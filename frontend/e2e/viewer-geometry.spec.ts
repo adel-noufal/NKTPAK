@@ -9,6 +9,8 @@ type SceneDebug = {
   candidateId: string
   productType: ProductType
   resolvedModel: { model: string; label: string }
+  fitKey: string
+  fit: { key: string; center: number[]; minY: number; radius: number; distance: number; width: number; height: number; near: number; far: number }
   sceneObjectNames: string[]
   productObjectName: string
   separation: number
@@ -22,6 +24,7 @@ const productDims = { length: 180, width: 165, height: 390 }
 const candidates = [
   { alternative_id: 'candidate-312', name: 'Candidate 312', outer_length_mm: 312, outer_width_mm: 297, outer_height_mm: 522 },
   { alternative_id: 'candidate-240', name: 'Candidate 240', outer_length_mm: 240, outer_width_mm: 225, outer_height_mm: 450 },
+  { alternative_id: 'candidate-878', name: 'Candidate 878', outer_length_mm: 878, outer_width_mm: 328, outer_height_mm: 478 },
 ]
 const dimsByCandidate = new Map(candidates.map((candidate) => [candidate.alternative_id, candidate]))
 
@@ -88,7 +91,7 @@ async function readScene(page: Page, productType: ProductType, candidateId: stri
   try {
     await page.waitForFunction(({ expectedType, expectedCandidate, expectedView }) => {
     const debug = (window as any).__NEXTPAK_3D_DEBUG__
-    return debug?.productBox && debug?.cartonBox && debug?.innerCartonBox && debug?.productObjectName &&
+    return debug?.productBox && debug?.cartonBox && debug?.innerCartonBox && debug?.productObjectName && debug?.fit?.key === debug?.fitKey &&
       debug.productType === expectedType && debug.candidateId === expectedCandidate && debug.view === expectedView
     }, { expectedType: productType, expectedCandidate: candidateId, expectedView: view }, { timeout: 5_000 })
   } catch {
@@ -108,12 +111,16 @@ function assertGeometry(scene: SceneDebug, productType: ProductType, candidateId
   const candidate = dimsByCandidate.get(candidateId)!
   expect(scene.productType).toBe(productType)
   expect(scene.resolvedModel.model).toBe(productType)
-  const label = productType === 'stand_fan' ? 'stand fan' : 'blender'
-  expect(scene.resolvedModel.label).toBe(`Approximate model for ${label}`)
+  expect(scene.resolvedModel.label).toBe('Estimated geometry')
   expect(scene.productObjectName).toBe(`product-model-${productType}`)
   expect(scene.sceneObjectNames).toContain(`product-model-${productType}`)
   expectBoxSize(scene.cartonBox.size, { length: candidate.outer_length_mm, width: candidate.outer_width_mm, height: candidate.outer_height_mm })
   expectBoxSize(scene.productBox.size, productDims)
+  expect(scene.fit.distance).toBeCloseTo(scene.fit.radius / Math.sin(Math.PI * 45 / 360) * 1.3, 4)
+  expect(scene.fit.near).toBeGreaterThan(0)
+  expect(scene.fit.far).toBeGreaterThan(scene.fit.distance)
+  expect(scene.fit.width).toBeGreaterThan(0)
+  expect(scene.fit.height).toBeGreaterThan(0)
 
   for (const axis of ['x', 'y', 'z'] as const) {
     expect(scene.productBox.min[axis]).toBeGreaterThan(scene.innerCartonBox.min[axis])
@@ -196,7 +203,14 @@ for (const productType of ['blender', 'stand_fan'] as const) {
         }
       }
     }
-    await expect(page.getByTestId('geometry-source')).toContainText(`Approximate model for ${productType === 'stand_fan' ? 'stand fan' : 'blender'}`)
+    await expect(page.getByTestId('geometry-source')).toContainText('Estimated geometry')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: 'Reset view' }).click()
+    await page.waitForFunction(() => {
+      const debug = (window as any).__NEXTPAK_3D_DEBUG__
+      const canvas = document.querySelector('canvas')
+      return debug?.fit?.key === debug?.fitKey && debug?.fit?.width > 0 && canvas && Math.abs(debug.fit.width - canvas.clientWidth) < 2
+    })
   })
 }
 
@@ -215,6 +229,18 @@ test('missing product dimensions show an editor action and never report clearanc
   await page.screenshot({ path: path.resolve(process.cwd(), '../test-evidence/missing-product-dimensions.png'), fullPage: true })
 })
 
+test('Upload 3D / CAD is inactive off-route, active on-route, and the sidebar keeps its height on Settings', async ({ page }) => {
+  await page.goto('/')
+  const upload = page.getByRole('link', { name: 'Upload 3D / CAD' })
+  await expect(upload).toHaveClass(/text-stone-500/)
+  const dashboardHeight = await page.locator('aside').evaluate((element) => element.getBoundingClientRect().height)
+  await page.goto('/settings')
+  const settingsHeight = await page.locator('aside').evaluate((element) => element.getBoundingClientRect().height)
+  expect(settingsHeight).toBe(dashboardHeight)
+  await page.goto('/projects/new?start=upload')
+  await expect(page.getByRole('link', { name: 'Upload 3D / CAD' })).toHaveClass(/text-white/)
+})
+
 test('standards page displays ISO and ISTA entries and supports organisation filters', async ({ page }) => {
   await page.route('**/api/v1/standards', (route) => route.fulfill({ json: {
     registry_version: '1', standards_count: 2, counts: { ISO: 1, ISTA: 1 }, last_verified_date: '2026-11-01',
@@ -226,13 +252,53 @@ test('standards page displays ISO and ISTA entries and supports organisation fil
   } }))
   await page.goto('/standards')
   await expect(page.getByTestId('standards-evaluation-banner')).toContainText('ISO registry v1 (1 entries) and ISTA registry v1 (1 entries)')
-  await expect(page.getByRole('button', { name: 'ISO (1)' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'ISTA (1)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ISO standards (1)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ISTA standards (1)' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add standard' })).toBeVisible()
   await page.screenshot({ path: path.resolve(process.cwd(), '../test-evidence/standards-iso-ista.png'), fullPage: true })
-  await page.getByRole('button', { name: 'ISTA (1)' }).click()
+  await page.getByRole('button', { name: 'ISTA standards (1)' }).click()
   await expect(page.getByText('ISTA 3A')).toBeVisible()
   await expect(page.getByText('ISO 2248:1985')).toHaveCount(0)
+})
+
+test('standard editor validates required metadata and surfaces a grounded refusal notification', async ({ page }) => {
+  let postCount = 0
+  await page.route('**/api/v1/standards', async (route) => {
+    if (route.request().method() === 'POST') {
+      postCount += 1
+      await route.fulfill({ status: 422, json: { detail: {
+        message: 'Standard refused: ISO X. Reason: Title does not match the publisher source.',
+        notification_id: 'refused-standard-1',
+        verification: { valid: false, reason: 'Title does not match the publisher source.', mismatches: [{ field: 'title', entered: 'Invented title', found: 'Different publisher title' }], found: { title: 'Different publisher title' }, sources: [{ title: 'Publisher result', url: 'https://example.org/standard' }] },
+      } } })
+      return
+    }
+    await route.fulfill({ json: { standards: [], standards_count: 0, counts: { ALL: 0, ISO: 0, ISTA: 0, ADDED_BY_ME: 0 }, evaluation_statement: 'Evaluated against: ISO registry v1 (0 entries) and ISTA registry v1 (0 entries).' } })
+  })
+  await page.route('**/api/v1/notifications', (route) => route.fulfill({ json: { unread_count: 1, notifications: [{ notification_id: 'refused-standard-1', title: 'Standard refused: ISO X', message: 'Standard refused: ISO X. Reason: Title does not match the publisher source.', details: { verification: { mismatches: [{ field: 'title', entered: 'Invented title', found: 'Different publisher title' }], sources: [{ title: 'Publisher result', url: 'https://example.org/standard' }] } }, is_read: false, created_at: new Date().toISOString() }] } }))
+  await page.goto('/standards')
+  await page.getByRole('button', { name: 'Add standard' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toHaveClass(/dark:bg-stone-900/)
+  const organization = dialog.locator('select')
+  for (const value of ['ISO', 'ISTA', 'ASTM', 'TAPPI', 'FEFCO', 'EN', 'BS', 'DIN', 'OTHER']) await expect(organization.locator(`option[value="${value}"]`)).toHaveCount(1)
+  await dialog.getByRole('button', { name: 'Save entry' }).click()
+  await expect(dialog.getByRole('alert')).toContainText('at least 3 characters')
+  expect(postCount).toBe(0)
+  await organization.selectOption('OTHER')
+  await dialog.getByLabel('Other organization name').fill('Standards Lab')
+  await dialog.getByLabel('standard identifier').fill('ISO X')
+  await dialog.getByLabel('title').fill('Invented title')
+  await dialog.getByLabel('scope summary').fill('A deliberately inaccurate scope to exercise refusal flow.')
+  await dialog.getByRole('button', { name: 'Save entry' }).click()
+  await expect(dialog.getByRole('alert')).toContainText('Title does not match the publisher source.')
+  await expect(page.getByRole('status')).toContainText('Standard refused: ISO X.')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: /Notifications \(1 unread\)/ }).click()
+  const notifications = page.getByRole('region', { name: 'Notifications' })
+  await expect(notifications).toContainText('entered “Invented title”; found “Different publisher title”')
+  await expect(notifications.getByRole('link', { name: 'Publisher result' })).toHaveAttribute('href', 'https://example.org/standard')
+  expect(postCount).toBe(1)
 })
 
 test('repaired saved blender project renders with restored dimensions and test guidance', async ({ page }) => {
@@ -247,7 +313,7 @@ test('repaired saved blender project renders with restored dimensions and test g
   await page.goto(`/projects/${projectId}`)
   await expect(page.getByTestId('product-dimensions')).toContainText('180.0 × 165.0 × 390.0 mm')
   await expect(page.locator('text=/ISO registry v1 \\(16 entries\\) and ISTA registry v1 \\(14 entries\\)/')).toBeVisible()
-  await expect(page.getByTestId('geometry-source')).toContainText('Approximate model for blender')
+    await expect(page.getByTestId('geometry-source')).toContainText('Estimated geometry')
   await page.getByRole('button', { name: 'Inside the Box' }).click()
   const debug = await page.waitForFunction(() => {
     const scene = (window as any).__NEXTPAK_3D_DEBUG__

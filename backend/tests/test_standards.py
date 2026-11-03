@@ -64,7 +64,8 @@ def test_standards_api_returns_database_seeded_iso_and_ista_entries():
         ids = {item["standard_identifier"] for item in payload["standards"]}
         assert {"ISTA 1A", "ISTA 1B", "ISTA 1C", "ISTA 1G", "ISTA 1H", "ISTA 2A", "ISTA 2B", "ISTA 3A", "ISTA 3B", "ISTA 3E", "ISTA 3F", "ISTA 3H", "ISTA 6-Amazon.com-SIOC"} <= ids
         assert payload["counts"]["ISO"] == 16
-        assert payload["counts"]["ISTA"] >= 13
+        assert payload["counts"]["ISTA"] == 14
+        assert payload["standards_count"] == 30
 
 
 def test_physical_test_standards_never_pass():

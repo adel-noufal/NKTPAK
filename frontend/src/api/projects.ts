@@ -103,6 +103,38 @@ export async function updateAdminSettings(settings: AdminSettingsUpdate): Promis
   return response.data
 }
 
+export interface FoamMaterial {
+  material_id: string
+  name: string
+  material_type: string
+  density_kg_m3: number | null
+  available_thicknesses_mm: number[]
+  cost_per_m3: number | null
+  cost_per_kg: number | null
+  sustainability_note: string | null
+  temperature_humidity_notes: string | null
+  cushion_curves: Array<{
+    thickness_mm: number
+    drop_height_mm: number
+    points: Array<{ static_stress_kpa: number; peak_deceleration_g: number }>
+  }>
+  source_name: string | null
+  source_url: string | null
+  retrieval_date: string | null
+  is_edited: boolean
+  enabled: boolean
+}
+
+export async function getFoamMaterials(): Promise<FoamMaterial[]> {
+  const response = await apiClient.get<FoamMaterial[]>('/settings/foam-materials')
+  return response.data
+}
+
+export async function updateFoamMaterials(materials: FoamMaterial[]): Promise<FoamMaterial[]> {
+  const response = await apiClient.put<FoamMaterial[]>('/settings/foam-materials', materials)
+  return response.data
+}
+
 // ── Real Dynamic AI Fetch ─────────────────────────────────────
 
 export async function fetchProduct(req: ProductSearchRequest): Promise<ProductSearchResponse> {
@@ -254,6 +286,11 @@ export async function getProjectRecommendation(projectId: string): Promise<Recom
 
 export async function generateProjectRecommendation(projectId: string): Promise<RecommendationRun> {
   const response = await apiClient.post<RecommendationRun>(`/projects/${projectId}/recommendation`)
+  return response.data
+}
+
+export async function reasonProjectRecommendation(projectId: string): Promise<RecommendationRun> {
+  const response = await apiClient.post<RecommendationRun>(`/projects/${projectId}/recommendation/reasoning`)
   return response.data
 }
 

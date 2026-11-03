@@ -105,3 +105,15 @@ class StandardsCatalogEntry(Base):
     check_type: Mapped[str] = mapped_column(String(30), nullable=False, default="PHYSICAL_TEST")
     applicability_rules: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     is_user_editable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verification_status: Mapped[str] = mapped_column(String(30), nullable=False, default="Registry")
+
+
+class AppNotification(Base):
+    __tablename__ = "app_notifications"
+
+    notification_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

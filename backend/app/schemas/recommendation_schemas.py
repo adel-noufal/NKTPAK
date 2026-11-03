@@ -7,6 +7,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
+from app.optimization.foam import FoamDesignResult
 
 
 class PackoutStep(BaseModel):
@@ -41,6 +42,7 @@ class RecommendedCandidate(BaseModel):
     insert_type: str
     insert_material: str
     cushion_thickness_mm: float
+    foam_design: Optional[FoamDesignResult] = None
     orientation: str
     units_per_carton: int = 1
 

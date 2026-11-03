@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import apiClient from '../../api/client'
 import { useProjectStore, type Theme } from '../../store/projectStore'
 import { AssistantPanel } from '../assistant/AssistantPanel'
 
@@ -11,11 +13,17 @@ const ThemeIcon: React.FC<{ theme: Theme }> = ({ theme }) => {
 }
 
 const THEME_CYCLE: Theme[] = ['dark', 'light', 'system']
+type NotificationItem = { notification_id: string; title: string; message: string; details: { verification?: { sources?: Array<{ title: string; url: string }>; mismatches?: Array<{ field: string; entered: string; found: string }> } }; is_read: boolean; created_at: string }
+type NotificationResponse = { unread_count: number; notifications: NotificationItem[] }
 
 export const Navbar: React.FC = () => {
   const { t, i18n } = useTranslation()
   const { language, setLanguage, theme, setTheme } = useProjectStore()
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const queryClient = useQueryClient()
+  const { data: notificationData } = useQuery<NotificationResponse>({ queryKey: ['notifications'], queryFn: async () => (await apiClient.get('/notifications')).data, refetchInterval: 30000 })
+  const markRead = useMutation({ mutationFn: (id: string) => apiClient.post(`/notifications/${id}/read`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }) })
 
   const handleToggleLanguage = () => {
     const nextLang = language === 'en' ? 'ar' : 'en'
@@ -59,6 +67,22 @@ export const Navbar: React.FC = () => {
             <span className="hidden sm:inline">{t('actions.newProject', 'New Project')}</span>
             <span className="sm:hidden">New</span>
           </Link>
+
+          <div className="relative">
+            <button type="button" onClick={() => setNotificationsOpen((open) => !open)} className="relative flex h-8 w-8 items-center justify-center rounded-md border border-stone-200 text-stone-600 transition-colors hover:bg-stone-100 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-800" aria-label={`Notifications${notificationData?.unread_count ? ` (${notificationData.unread_count} unread)` : ''}`} aria-expanded={notificationsOpen}>
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 00-4.5-5.8V4a1.5 1.5 0 00-3 0v1.2A6 6 0 006 11v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 01-6 0" /></svg>
+              {!!notificationData?.unread_count && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-600 px-1 text-[9px] font-bold leading-4 text-white">{notificationData.unread_count}</span>}
+            </button>
+            {notificationsOpen && <section aria-label="Notifications" className="absolute end-0 top-10 z-50 w-80 max-h-[70vh] overflow-y-auto rounded-xl border border-stone-200 bg-white p-3 shadow-xl dark:border-stone-700 dark:bg-stone-900">
+              <h2 className="mb-2 text-xs font-bold text-stone-800 dark:text-stone-100">Notifications</h2>
+              {!notificationData?.notifications.length ? <p className="py-4 text-xs text-stone-500">No notifications.</p> : notificationData.notifications.map((item) => <article key={item.notification_id} className={`border-t border-stone-200 py-3 text-xs dark:border-stone-800 ${item.is_read ? 'opacity-70' : ''}`}>
+                <div className="flex items-start justify-between gap-2"><strong className="text-stone-800 dark:text-stone-100">{item.title}</strong>{!item.is_read && <button type="button" onClick={() => markRead.mutate(item.notification_id)} className="shrink-0 text-[10px] text-stone-600 underline dark:text-stone-400">Mark read</button>}</div>
+                <p className="mt-1 whitespace-pre-wrap text-stone-600 dark:text-stone-300">{item.message}</p>
+                {!!item.details.verification?.mismatches?.length && <ul className="mt-2 list-disc space-y-1 ps-4 text-[10px] text-stone-500">{item.details.verification.mismatches.map((mismatch, index) => <li key={`${mismatch.field}-${index}`}>{mismatch.field}: entered “{mismatch.entered}”; found “{mismatch.found}”</li>)}</ul>}
+                {!!item.details.verification?.sources?.length && <div className="mt-2 space-y-1">{item.details.verification.sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="block truncate text-[10px] text-stone-700 underline dark:text-stone-300">{source.title}</a>)}</div>}
+              </article>)}
+            </section>}
+          </div>
 
           {/* AI Assistant button */}
           <button

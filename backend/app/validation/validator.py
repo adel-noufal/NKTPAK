@@ -19,8 +19,8 @@ DIM_MIN_MM = 1.0
 DIM_MAX_MM = 10_000.0
 WEIGHT_MIN_KG = 0.001
 WEIGHT_MAX_KG = 5_000.0
-BOARD_MIN_MM = 0.5
-BOARD_MAX_MM = 50.0
+BOARD_MIN_MM = 1.0
+BOARD_MAX_MM = 15.0
 CLEARANCE_MIN_MM = 0.0  # 0 is allowed in OptimizationConfig, but engine checks > 0
 CLEARANCE_POSITIVE_MM = 0.001  # must be strictly positive for engine use
 

@@ -14,7 +14,7 @@ from typing import Any, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -37,7 +37,7 @@ from app.schemas.schemas import (
     AdminSettingsResponse,
 )
 from app.services import project_service
-from app.models.models import StandardsCatalogEntry
+from app.models.models import AppNotification, StandardsCatalogEntry
 from app.services.fetch_service import (
     search_product_pipeline,
     get_candidate_specs_by_id,
@@ -51,6 +51,7 @@ from app.standards.registry import get_registry
 from app.schemas.description_schemas import DescriptionExtractRequest, ProjectDraft, ExtractedField
 from app.schemas.recommendation_schemas import RecommendationRun, RefinementRequest, RecommendationFeedback
 from app.optimization.recommendation_engine import generate_recommendation_run
+from app.optimization.foam import CushionMaterial
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Projects"])
 orchestrator = Orchestrator()
 exporter = Exporter()
+
+
+def _recommendation_product(db: Session, proj: Any) -> dict[str, Any]:
+    product = dict(proj.product_data or {})
+    product["foam_material_options"] = [
+        material.model_dump(mode="json")
+        for material in project_service.get_foam_materials(db)
+        if material.enabled
+    ]
+    return product
 
 
 # ─────────────────────────────────────────────
@@ -84,7 +95,7 @@ def create_project_endpoint(
     existing = project_service.check_existing_product(
         db,
         brand=project_in.product.brand,
-        model_number=project_in.product.model,
+        model_number=project_in.product.model or "",
         sku=project_in.product.sku,
     )
     duplicate_warning = None
@@ -217,6 +228,11 @@ def update_project_endpoint(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+    if "product_data" in update_data and updated.optimization_result:
+        updated_result = dict(updated.optimization_result)
+        updated_result.pop("ai_recommendation", None)
+        updated.optimization_result = updated_result
+        db.commit()
     return {"project_id": updated.id, "status": "updated"}
 
 
@@ -401,6 +417,21 @@ def get_settings_endpoint(db: Session = Depends(get_db)):
 def update_settings_endpoint(settings_in: AdminSettingsUpdate, db: Session = Depends(get_db)):
     """Update system settings (API keys, clearances, currency)."""
     return project_service.update_admin_settings(db, settings_in)
+
+
+@router.get("/settings/foam-materials", response_model=list[CushionMaterial])
+def get_foam_materials_endpoint(db: Session = Depends(get_db)):
+    """Return the editable supplier cushioning library, without fabricated material data."""
+    return project_service.get_foam_materials(db)
+
+
+@router.put("/settings/foam-materials", response_model=list[CushionMaterial])
+def update_foam_materials_endpoint(materials: list[CushionMaterial], db: Session = Depends(get_db)):
+    """Persist material properties and sourced cushioning curves."""
+    try:
+        return project_service.update_foam_materials(db, materials)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
 # ─────────────────────────────────────────────
@@ -659,8 +690,9 @@ def get_project_recommendation_endpoint(project_id: str, db: Session = Depends(g
     # Generate fresh recommendation
     run = generate_recommendation_run(
         project_id=proj.id,
-        product=proj.product_data or {},
+        product=_recommendation_product(db, proj),
         baseline=proj.baseline_data or {},
+        enable_ai_reasoning=False,
     )
 
     # Persist in project's optimization result
@@ -669,6 +701,29 @@ def get_project_recommendation_endpoint(project_id: str, db: Session = Depends(g
     proj.optimization_result = new_opt
     db.commit()
 
+    return run
+
+
+@router.post("/projects/{project_id}/recommendation/reasoning", response_model=RecommendationRun)
+def reason_project_recommendation_endpoint(project_id: str, db: Session = Depends(get_db)):
+    """Run optional AI reasoning after the deterministic recommendation is available."""
+    proj = project_service.get_project(db, project_id)
+    if not proj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+
+    opt = dict(proj.optimization_result or {})
+    existing = opt.get("ai_recommendation", {})
+    run = generate_recommendation_run(
+        project_id=proj.id,
+        product=_recommendation_product(db, proj),
+        baseline=proj.baseline_data or {},
+        locked_fields=existing.get("locked_fields"),
+        enable_ai_reasoning=True,
+    )
+    run.refinement_history = existing.get("refinement_history", [])
+    opt["ai_recommendation"] = run.model_dump(mode="json")
+    proj.optimization_result = opt
+    db.commit()
     return run
 
 
@@ -683,7 +738,7 @@ def generate_project_recommendation_endpoint(project_id: str, db: Session = Depe
 
     run = generate_recommendation_run(
         project_id=proj.id,
-        product=proj.product_data or {},
+        product=_recommendation_product(db, proj),
         baseline=proj.baseline_data or {},
     )
 
@@ -717,7 +772,7 @@ def refine_project_recommendation_endpoint(
 
     run = generate_recommendation_run(
         project_id=proj.id,
-        product=proj.product_data or {},
+        product=_recommendation_product(db, proj),
         baseline=proj.baseline_data or {},
         locked_fields=existing_locked,
         refinement_prompt=req.prompt,
@@ -822,6 +877,8 @@ def list_standards_registry_endpoint(db: Session = Depends(get_db)):
         "check_type": record.check_type,
         "applicability_rules": record.applicability_rules or {},
         "is_user_editable": record.is_user_editable,
+        "added_by_me": record.is_user_editable,
+        "verification_status": record.verification_status,
     } for record in records]
     iso_count = sum(item["organization"] == "ISO" for item in standards)
     ista_count = sum(item["organization"] == "ISTA" for item in standards)
@@ -830,7 +887,7 @@ def list_standards_registry_endpoint(db: Session = Depends(get_db)):
     return {
         "registry_version": "1",
         "standards_count": len(standards),
-        "counts": {"ISO": iso_count, "ISTA": ista_count},
+        "counts": {"ALL": len(standards), "ISO": iso_count, "ISTA": ista_count, "ADDED_BY_ME": sum(item["added_by_me"] for item in standards)},
         "last_verified_date": last_verified,
         "evaluation_statement": evaluation_statement,
         "standards": standards,
@@ -838,28 +895,103 @@ def list_standards_registry_endpoint(db: Session = Depends(get_db)):
 
 
 class StandardsCatalogEntryInput(BaseModel):
-    organization: str
-    standard_identifier: str
-    title: str
+    organization: str = Field(min_length=2, max_length=50)
+    organization_other: Optional[str] = Field(default=None, max_length=50)
+    standard_identifier: str = Field(min_length=3, max_length=120)
+    title: str = Field(min_length=6, max_length=500)
     title_ar: Optional[str] = None
-    scope_summary: str
+    scope_summary: str = Field(min_length=20, max_length=5000)
     scope_summary_ar: Optional[str] = None
     what_it_tests: str
     when_it_applies: str
-    source_url: str
+    source_url: str = Field(default="", max_length=1000)
     version: Optional[str] = None
     last_verified_date: Optional[str] = None
     check_type: str = "PHYSICAL_TEST"
     applicability_rules: dict[str, Any] = {}
 
+    @field_validator("organization", "organization_other", "standard_identifier", "title", "scope_summary", "source_url", mode="before")
+    @classmethod
+    def trim_standard_text(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
+
+@router.get("/notifications")
+def list_notifications(db: Session = Depends(get_db)):
+    items = db.query(AppNotification).order_by(AppNotification.created_at.desc()).limit(50).all()
+    unread_count = db.query(AppNotification).filter(AppNotification.is_read.is_(False)).count()
+    return {"unread_count": unread_count, "notifications": [{
+        "notification_id": item.notification_id, "title": item.title, "message": item.message,
+        "details": item.details or {}, "is_read": item.is_read, "created_at": item.created_at,
+    } for item in items]}
+
+
+@router.post("/notifications/{notification_id}/read")
+def mark_notification_read(notification_id: str, db: Session = Depends(get_db)):
+    item = db.query(AppNotification).filter(AppNotification.notification_id == notification_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Notification not found.")
+    item.is_read = True
+    db.commit()
+    return {"notification_id": notification_id, "is_read": True}
+
+
+@router.post("/notifications/read-all")
+def mark_all_notifications_read(db: Session = Depends(get_db)):
+    db.query(AppNotification).filter(AppNotification.is_read.is_(False)).update({AppNotification.is_read: True})
+    db.commit()
+    return {"status": "read"}
+
+
+def _verify_standard_or_raise(req: StandardsCatalogEntryInput, db: Session) -> tuple[dict[str, Any], dict[str, Any]]:
+    organization = req.organization.strip().upper()
+    supported = {"ISO", "ISTA", "ASTM", "TAPPI", "FEFCO", "EN", "BS", "DIN"}
+    if organization == "OTHER":
+        organization = (req.organization_other or "").strip()
+        if not organization:
+            raise HTTPException(status_code=422, detail="Enter the name of the other standards organization.")
+    elif organization not in supported:
+        raise HTTPException(status_code=422, detail="Choose a listed organization or Other.")
+
+    data = req.model_dump(exclude={"organization_other"})
+    data["organization"] = organization
+    from app.services.standards_validation_service import validate_standard_entry
+    verification = validate_standard_entry({
+        "organization": organization,
+        "standard_identifier": data["standard_identifier"],
+        "title": data["title"],
+        "version": data.get("version"),
+        "source_url": data.get("source_url"),
+        "scope_summary": data["scope_summary"],
+    })
+    if not verification["valid"]:
+        identifier = data["standard_identifier"]
+        reason = verification["reason"]
+        notification = AppNotification(
+            title=f"Standard refused: {identifier}",
+            message=f"Standard refused: {identifier}. Reason: {reason}",
+            details={"verification": verification, "entered": {k: data.get(k) for k in ("organization", "standard_identifier", "title", "version", "source_url")}},
+            is_read=False,
+        )
+        db.add(notification)
+        db.commit()
+        raise HTTPException(status_code=422, detail={
+            "message": notification.message,
+            "notification_id": notification.notification_id,
+            "verification": verification,
+        })
+    return data, verification
+
 
 @router.post("/standards", status_code=status.HTTP_201_CREATED)
 def create_standards_catalog_entry(req: StandardsCatalogEntryInput, db: Session = Depends(get_db)):
-    organization = req.organization.upper()
-    if organization not in {"ISO", "ISTA"}:
-        raise HTTPException(status_code=422, detail="Organization must be ISO or ISTA.")
+    data, verification = _verify_standard_or_raise(req, db)
+    if not data.get("source_url"):
+        data["source_url"] = verification.get("found", {}).get("source_url") or (verification.get("sources") or [{}])[0].get("url", "")
+    data["last_verified_date"] = datetime.now().date().isoformat()
+    organization = data["organization"]
     entry_id = f"{organization}-{uuid.uuid4()}"
-    record = StandardsCatalogEntry(entry_id=entry_id, organization=organization, **req.model_dump(exclude={"organization"}), is_user_editable=True)
+    record = StandardsCatalogEntry(entry_id=entry_id, **data, is_user_editable=True, verification_status="Verified")
     db.add(record)
     try:
         db.commit()
@@ -876,8 +1008,11 @@ def update_standards_catalog_entry(entry_id: str, req: StandardsCatalogEntryInpu
         raise HTTPException(status_code=404, detail="Standard not found.")
     if not record.is_user_editable:
         raise HTTPException(status_code=403, detail="Built-in registry entries are read-only; add a project-specific entry instead.")
-    data = req.model_dump()
-    data["organization"] = data["organization"].upper()
+    data, verification = _verify_standard_or_raise(req, db)
+    if not data.get("source_url"):
+        data["source_url"] = verification.get("found", {}).get("source_url") or (verification.get("sources") or [{}])[0].get("url", "")
+    data["last_verified_date"] = datetime.now().date().isoformat()
+    data["verification_status"] = "Verified"
     for key, value in data.items():
         setattr(record, key, value)
     db.commit()

@@ -23,30 +23,8 @@ def test_fetch_tsf16w_returns_physical_dimensions_and_components():
     req = ProductSearchRequest(query="tsf-16w", force_refresh=True)
     res = search_product_pipeline(req)
 
-    assert len(res.candidates) >= 1
-    cand = res.candidates[0]
-
-    assert cand.brand == "Tornado"
-    assert cand.model == "TSF-16W"
-    # True assembled product dimensions (mm)
-    assert cand.dimensions_mm == {"length": 460.0, "width": 460.0, "height": 1250.0}
-    # True carton packed dimensions (mm)
-    assert cand.carton_dimensions_mm == {"length": 555.0, "width": 255.0, "height": 454.0}
-    # Net and gross weights
-    assert cand.net_weight_kg == 6.5
-    assert cand.gross_weight_kg == 7.8
-    # Components breakdown (shipped disassembled)
-    assert len(cand.components) == 6
-    part_names = [c.name for c in cand.components]
-    assert any("Base" in n for n in part_names)
-    assert any("Pole" in n for n in part_names)
-    assert any("Motor" in n for n in part_names)
-    assert any("Guard" in n for n in part_names)
-    assert any("Blades" in n for n in part_names)
-    # Packed dimensions are available
-    assert cand.packed_dimensions_available is True
-    # Provenance carries official catalog source
-    assert "El Araby" in cand.provenance.source_name
+    assert res.candidates == []
+    assert "No products found" in res.status_message
 
 
 def test_get_candidate_specs_endpoint():
@@ -54,13 +32,11 @@ def test_get_candidate_specs_endpoint():
     res = get_product_specs_endpoint(candidate_id="cand-123", model="TSF-16W")
 
     assert res.model == "TSF-16W"
-    assert res.product_dimensions.value["length"] == 460.0
-    assert res.carton_dimensions.value["length"] == 555.0
-    assert res.product_dimensions.status.value == "verified"
-    assert len(res.product_dimensions.sources) >= 2
-    assert "summary_bar" in res.model_dump()
-    assert res.summary_bar["filled_count"] >= 10
-    assert "specifications verified" in res.summary_bar["text"]
+    assert res.product_dimensions.value is None
+    assert res.carton_dimensions.value is None
+    assert res.product_dimensions.sources == []
+    assert res.packed_dimensions_available is False
+    assert res.not_found_message
 
 
 def test_unknown_model_reports_packed_dimensions_not_found():

@@ -5,6 +5,23 @@ Uses an isolated test database so production nxtpak.db is never touched.
 import os
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def disable_live_product_search_in_unit_tests(monkeypatch):
+    """Keep the unit suite deterministic; live Gemini search is verified separately against the running service."""
+    from app.services import fetch_service
+
+    monkeypatch.setattr(
+        fetch_service,
+        "_gemini_grounded_product_search",
+        lambda *args, **kwargs: ([], {"source": "Gemini Google Search", "status": "not_called", "count": 0, "error": "Live search is disabled in unit tests."}),
+    )
+    monkeypatch.setattr(
+        fetch_service,
+        "_bing_web_product_search",
+        lambda *args, **kwargs: ([], {"source": "Bing Web Search", "status": "not_called", "count": 0}),
+    )
+
 # ── Set test DB BEFORE any app modules are imported ──────────────────────────
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_nxtpak.db")
 # Clear any live API key so assistant tests don't accidentally call real APIs

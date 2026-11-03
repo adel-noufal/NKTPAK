@@ -12,6 +12,20 @@ const QUICK_ACTIONS = [
   { label: 'What is missing?', action: 'What required information is still missing from this project?' },
 ]
 
+function renderAssistantMarkdown(content: string): React.ReactNode {
+  const inline = (value: string, key: string) => value.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={`${key}-${index}`}>{part.slice(2, -2)}</strong>
+      : <React.Fragment key={`${key}-${index}`}>{part}</React.Fragment>,
+  )
+  return content.split('\n').map((line, index) => {
+    const match = line.match(/^\s*[-*]\s+(.+)$/)
+    return match
+      ? <div key={index} className="flex gap-1.5"><span aria-hidden="true">•</span><span>{inline(match[1], String(index))}</span></div>
+      : <React.Fragment key={index}>{inline(line, String(index))}{index < content.split('\n').length - 1 && <br />}</React.Fragment>
+  })
+}
+
 interface AssistantPanelProps {
   isOpen: boolean
   onClose: () => void
@@ -25,6 +39,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({ isOpen, onClose 
   const inputRef = useRef<HTMLInputElement>(null)
   const location = useLocation()
   const { currentProject } = useProjectStore()
+  const [pageLabel, setPageLabel] = useState(location.pathname)
 
   const mutation = useMutation({
     mutationFn: sendAssistantMessage,
@@ -53,9 +68,13 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({ isOpen, onClose 
 
   useEffect(() => {
     if (isOpen) {
+      try {
+        const snapshot = JSON.parse(sessionStorage.getItem('nxtpak:assistant-page-context') || '{}')
+        setPageLabel(`${snapshot.page_title || location.pathname}${snapshot.active_view ? ` · ${snapshot.active_view}` : ''}`)
+      } catch { setPageLabel(location.pathname) }
       setTimeout(() => inputRef.current?.focus(), 150)
     }
-  }, [isOpen])
+  }, [isOpen, location.pathname])
 
   const send = (text: string) => {
     if (!text.trim()) return
@@ -67,10 +86,14 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({ isOpen, onClose 
     setMessages((prev) => [...prev, userMsg])
     setInput('')
 
+    let pageSnapshot: Record<string, unknown> = {}
+    try {
+      pageSnapshot = JSON.parse(sessionStorage.getItem('nxtpak:assistant-page-context') || '{}')
+    } catch { /* Continue with route-only context if the snapshot is unavailable. */ }
     mutation.mutate({
       project_id: currentProject?.project_id ?? null,
       message: text.trim(),
-      page_context: { route: location.pathname },
+      page_context: { ...pageSnapshot, route: location.pathname, page_title: document.title },
       history: messages.slice(-10),
     })
   }
@@ -126,6 +149,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({ isOpen, onClose 
             </svg>
           </button>
         </div>
+        <p className="px-4 py-1.5 border-b border-stone-100 dark:border-stone-800 text-[10px] text-stone-500">Looking at: {pageLabel}</p>
 
         {/* AI disclaimer */}
         {mode === 'ai' && (
@@ -168,7 +192,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({ isOpen, onClose 
                     : 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-bl-sm'
                 }`}
               >
-                {msg.content}
+                {renderAssistantMarkdown(msg.content)}
               </div>
             </div>
           ))}

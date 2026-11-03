@@ -28,6 +28,9 @@ def seed_standards_catalog() -> int:
             registry_data = json.load(source)
         for item in registry_data.get("standards", []):
             identifier = item.get("standard_identifier", "")
+            if not all(str(item.get(key) or "").strip() for key in ("standard_identifier", "title", "scope_summary")):
+                logger.warning("Skipping incomplete standards seed row from %s", path)
+                continue
             organization = "ISTA" if identifier.upper().startswith("ISTA") else "ISO"
             if organization == "ISTA":
                 series = identifier.removeprefix("ISTA ").split("-")[0][:1]
@@ -75,10 +78,10 @@ def seed_standards_catalog() -> int:
             conn.execute(text("""INSERT INTO standards_catalog
                 (entry_id, organization, standard_identifier, title, title_ar, scope_summary, scope_summary_ar,
                  what_it_tests, when_it_applies, source_url, version, last_verified_date, check_type,
-                 applicability_rules, is_user_editable)
+                 applicability_rules, is_user_editable, verification_status)
                 VALUES (:entry_id, :organization, :standard_identifier, :title, :title_ar, :scope_summary, :scope_summary_ar,
                  :what_it_tests, :when_it_applies, :source_url, :version, :last_verified_date, :check_type,
-                 :applicability_rules, :is_user_editable)"""), {**row, "applicability_rules": json.dumps(row["applicability_rules"])})
+                 :applicability_rules, :is_user_editable, :verification_status)"""), {**row, "applicability_rules": json.dumps(row["applicability_rules"]), "verification_status": "Registry"})
             existing[identifier] = False
             inserted += 1
     return inserted
@@ -202,6 +205,17 @@ def run_database_migrations() -> None:
     # 2. Add columns if migrating an existing SQLite database
     with engine.connect() as conn:
         try:
+            standards_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(standards_catalog)")).fetchall()}
+            if standards_cols and "verification_status" not in standards_cols:
+                conn.execute(text("ALTER TABLE standards_catalog ADD COLUMN verification_status VARCHAR(30) NOT NULL DEFAULT 'Registry'"))
+            if standards_cols:
+                removed = conn.execute(text("""DELETE FROM standards_catalog
+                    WHERE TRIM(COALESCE(standard_identifier, '')) = ''
+                      AND TRIM(COALESCE(title, '')) = ''
+                      AND TRIM(COALESCE(scope_summary, '')) = ''"""))
+                if removed.rowcount:
+                    logger.info("Removed %d blank standards registry row(s)", removed.rowcount)
+                conn.commit()
             res = conn.execute(text("PRAGMA table_info(projects)"))
             existing_cols = {row[1] for row in res.fetchall()}
 

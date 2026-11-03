@@ -1,16 +1,56 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Grid, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useProjectStore } from '../../store/projectStore'
 import type { PackagingAlternative, ComponentSpec, FragilityClass } from '../../types'
 import { ParametricProduct3D } from './ParametricProduct3D'
-import { boxSizeLWH, createBoxGeometryLWH, fitObjectToBounds, measureClearance } from './sceneGeometry'
+import { boxSizeLWH, cameraFitDistance, createBoxGeometryLWH, fitObjectToBounds, measureClearance } from './sceneGeometry'
 import { resolveProductModel, type ProductModelProject } from './productModel'
 
 type BoxRecord = { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number }; size: { length: number; width: number; height: number } }
 type SceneBoxes = { carton: THREE.Box3 | null; innerCarton: THREE.Box3 | null; product: THREE.Box3 | null; productObjectName: string | null }
+type FitMetrics = { key: string; center: [number, number, number]; minY: number; radius: number; distance: number; width: number; height: number; near: number; far: number }
 declare global { interface Window { __NEXTPAK_3D_DEBUG__?: Record<string, unknown> } }
+
+const CameraAutoFit: React.FC<{
+  objectRef: React.RefObject<THREE.Group | null>
+  controlsRef: React.RefObject<any>
+  fitKey: string
+  onFit: (box: THREE.Box3, metrics: FitMetrics) => void
+}> = ({ objectRef, controlsRef, fitKey, onFit }) => {
+  const { camera, size } = useThree()
+  useEffect(() => {
+    let firstFrame = 0
+    let secondFrame = 0
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        const activeObject = objectRef.current
+        if (!activeObject || !(camera instanceof THREE.PerspectiveCamera) || size.width < 1 || size.height < 1) return
+        activeObject.updateWorldMatrix(true, true)
+        const bounds = new THREE.Box3().setFromObject(activeObject)
+        if (bounds.isEmpty()) return
+        const sphere = bounds.getBoundingSphere(new THREE.Sphere())
+        const distance = cameraFitDistance(sphere.radius, camera.fov, 1.3)
+        const direction = new THREE.Vector3(1, 0.72, 1).normalize()
+        camera.position.copy(sphere.center).addScaledVector(direction, distance)
+        camera.near = Math.max(0.1, distance / 1000)
+        camera.far = Math.max(10000, distance * 20)
+        camera.updateProjectionMatrix()
+        const controls = controlsRef.current
+        if (controls) {
+          controls.target.copy(sphere.center)
+          controls.minDistance = Math.max(1, sphere.radius * 0.08)
+          controls.maxDistance = Math.max(distance * 8, controls.minDistance * 10)
+          controls.update()
+        }
+        onFit(bounds.clone(), { key: fitKey, center: [sphere.center.x, sphere.center.y, sphere.center.z], minY: bounds.min.y, radius: sphere.radius, distance, width: size.width, height: size.height, near: camera.near, far: camera.far })
+      })
+    })
+    return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame) }
+  }, [camera, controlsRef, fitKey, objectRef, onFit, size.width, size.height])
+  return null
+}
 
 interface PackagingViewer3DProps {
   alternative?: PackagingAlternative | null
@@ -102,6 +142,50 @@ const MeasuredProduct: React.FC<{
   </group>
 }
 
+const FoamPads: React.FC<{
+  length: number
+  width: number
+  height: number
+  thickness: number
+  materialName?: string
+  wireframe: boolean
+}> = ({ length, width, height, thickness, materialName = '', wireframe }) => {
+  const normalized = materialName.toLowerCase()
+  const color = normalized.includes('epe') || normalized.includes('polyethylene')
+    ? '#22d3ee'
+    : normalized.includes('eps') || normalized.includes('polystyrene')
+      ? '#93c5fd'
+      : normalized.includes('epp') || normalized.includes('polypropylene')
+        ? '#a78bfa'
+        : normalized.includes('pulp') || normalized.includes('kraft') || normalized.includes('paper')
+          ? '#d6a86a'
+          : normalized.includes('polyurethane')
+            ? '#fbbf24'
+            : '#10b981'
+  return (
+    <group name="foam-insert-pads">
+      <group position={[-(length + thickness) / 2, 0, 0]}>
+        <BoxMesh dimensions={[thickness, height, width]} color={color} opacity={0.78} wireframe={wireframe} />
+      </group>
+      <group position={[(length + thickness) / 2, 0, 0]}>
+        <BoxMesh dimensions={[thickness, height, width]} color={color} opacity={0.78} wireframe={wireframe} />
+      </group>
+      <group position={[0, 0, -(width + thickness) / 2]}>
+        <BoxMesh dimensions={[length, height, thickness]} color={color} opacity={0.78} wireframe={wireframe} />
+      </group>
+      <group position={[0, 0, (width + thickness) / 2]}>
+        <BoxMesh dimensions={[length, height, thickness]} color={color} opacity={0.78} wireframe={wireframe} />
+      </group>
+      <group position={[0, -(height + thickness) / 2, 0]}>
+        <BoxMesh dimensions={[length + 2 * thickness, thickness, width + 2 * thickness]} color={color} opacity={0.78} wireframe={wireframe} />
+      </group>
+      <group position={[0, (height + thickness) / 2, 0]}>
+        <BoxMesh dimensions={[length + 2 * thickness, thickness, width + 2 * thickness]} color={color} opacity={0.78} wireframe={wireframe} />
+      </group>
+    </group>
+  )
+}
+
 export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   alternative,
   productDims,
@@ -124,8 +208,11 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
   const [selectedComponent, setSelectedComponent] = useState<ComponentSpec | null>(null)
   const [cameraView, setCameraView] = useState<'iso' | 'front' | 'top'>('iso')
+  const [fitRequest, setFitRequest] = useState(0)
+  const [fitMetrics, setFitMetrics] = useState<FitMetrics | null>(null)
   const [sceneBoxes, setSceneBoxes] = useState<SceneBoxes>({ carton: null, innerCarton: null, product: null, productObjectName: null })
   const sceneRootRef = useRef<THREE.Group>(null)
+  const activeViewRef = useRef<THREE.Group>(null)
   const controlsRef = useRef<any>(null)
 
   // Every scene object uses millimetres: +X length, +Y height, +Z width.
@@ -144,6 +231,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   const hasProductDimensions = validDimensions({ length: pLength, width: pWidth, height: pHeight })
   const hasCartonDimensions = validDimensions({ length: outerL_mm, width: outerW_mm, height: outerH_mm })
   const hasRenderableDimensions = hasProductDimensions && hasCartonDimensions
+  const fitKey = [selectedView, productSubView, explodedFactor, fitRequest, alternative?.alternative_id, outerL_mm, outerW_mm, outerH_mm, pLength, pWidth, pHeight].join(':')
 
   const outerL = outerL_mm * scale
   const outerW = outerW_mm * scale
@@ -168,6 +256,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
   const recordCarton = useCallback((box: THREE.Box3) => recordBox('carton', box), [recordBox])
   const recordInner = useCallback((box: THREE.Box3) => recordBox('innerCarton', box), [recordBox])
   const recordProduct = useCallback((box: THREE.Box3, objectName: string) => recordBox('product', box, objectName), [recordBox])
+  const recordFit = useCallback((_box: THREE.Box3, metrics: FitMetrics) => setFitMetrics(metrics), [])
   const measuredCarton = sceneBoxes.carton ? boxSizeLWH(sceneBoxes.carton) : { length: outerL_mm, width: outerW_mm, height: outerH_mm }
   const measuredProduct = sceneBoxes.product ? boxSizeLWH(sceneBoxes.product) : { length: pLength, width: pWidth, height: pHeight }
   const measuredClearance = sceneBoxes.innerCarton && sceneBoxes.product
@@ -197,8 +286,10 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
       innerCartonBox: serializeBox(sceneBoxes.innerCarton),
       productBox: serializeBox(sceneBoxes.product),
       clearanceMm: measuredClearance,
+      fit: fitMetrics,
+      fitKey,
     }
-  }, [selectedView, productSubView, alternative?.alternative_id, productType, modelResolution, explodedFactor, sceneBoxes, measuredClearance])
+  }, [selectedView, productSubView, alternative?.alternative_id, productType, modelResolution, explodedFactor, sceneBoxes, measuredClearance, fitMetrics, fitKey])
 
   const getProxiedUrl = (url: string) => {
     if (!url) return ''
@@ -418,13 +509,13 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
               {mode === 'iso' ? '3D' : mode}
             </button>
           ))}
+          <button type="button" onClick={() => setFitRequest((value) => value + 1)} aria-label="Reset view" className="ms-1 rounded px-2 py-1 text-stone-300 hover:bg-stone-700">Reset view</button>
         </div>
 
         {/* Consistent Geometry Dimensions Card */}
         <div className="pointer-events-auto bg-stone-800/95 dark:bg-stone-900/95 backdrop-blur-md px-3 py-2.5 rounded-lg border border-stone-700/60 text-xs text-stone-300 shadow max-w-[260px]">
           <div className="font-semibold text-stone-100 flex items-center justify-between border-b border-stone-700 pb-1 mb-1.5">
             <span className="text-[11px]">Physical Dimensions</span>
-            <span data-testid="geometry-source" className="text-[10px] text-emerald-400 font-mono">{modelResolution.label}</span>
           </div>
           <div className="font-mono text-[11px] space-y-1">
             <div className="flex justify-between items-center gap-3">
@@ -524,13 +615,13 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
         {/* 3D Canvas */}
         <div className="flex-1 h-full relative">
           <Canvas
-            camera={{ position: [outerL * 1.7, outerH * 1.4, outerW * 1.8], fov: 45 }}
+            camera={{ position: [1, 1, 1], fov: 45, near: 0.1, far: 10000 }}
             className="w-full h-full cursor-grab active:cursor-grabbing"
           >
-            <ambientLight intensity={0.9} />
-            <directionalLight position={[6, 10, 6]} intensity={1.3} castShadow />
-            <directionalLight position={[-6, -4, -6]} intensity={0.5} />
-            <directionalLight position={[0, 5, -8]} intensity={0.4} />
+            <ambientLight intensity={1.1} />
+            <directionalLight position={[1200, 1800, 1100]} intensity={1.6} castShadow />
+            <directionalLight position={[-900, 600, -700]} intensity={0.7} />
+            <directionalLight position={[0, 1000, -1200]} intensity={0.55} />
 
             <group ref={sceneRootRef} name="millimetre-scene-x-length-y-height-z-width">
               <BoxMesh dimensions={[outerL, outerH, outerW]} color="#d97706" opacity={0} visible={false} onMeasure={recordCarton} />
@@ -538,7 +629,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
               {selectedView === 'box' && productDims && <MeasuredProduct dimensions={{ length: pLength, width: pWidth, height: pHeight }} resolvedModel={modelResolution.model} viewMode="assembled" explodedFactor={0} components={components} wireframe={wireframeMode} visible={false} onMeasure={recordProduct} />}
               {/* View 1: Box (Outside) */}
               {selectedView === 'box' && (
-                <group>
+                <group ref={activeViewRef}>
                   <BoxMesh
                     dimensions={[outerL, outerH, outerW]}
                     color="#d97706"
@@ -571,7 +662,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
 
               {/* View 2: Inside the Box */}
               {selectedView === 'inside' && (
-                <group>
+                <group ref={activeViewRef}>
                   {/* Semi-transparent Carton Shell */}
                   <BoxMesh
                     dimensions={[outerL, outerH, outerW]}
@@ -607,12 +698,14 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
                     </group>
                   )}
 
-                  {/* Cushion Inserts Layer */}
+                  {/* Face pads are separate solids so the product and each insert remain visible. */}
                   {hasInserts && productDims && (
-                    <BoxMesh
-                      dimensions={[prodL + insertTh * 2, prodH + insertTh * 2, prodW + insertTh * 2]}
-                      color="#10b981"
-                      opacity={0.22}
+                    <FoamPads
+                      length={prodL}
+                      width={prodW}
+                      height={prodH}
+                      thickness={insertTh}
+                      materialName={alternative?.foam_material}
                       wireframe={wireframeMode}
                     />
                   )}
@@ -621,7 +714,8 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
 
               {/* View 3: Product Alone (Assembled or Packed Parts) */}
               {selectedView === 'product' && (
-                <group>
+                <group ref={activeViewRef}>
+                  {hasInserts && productDims && productSubView === 'packed_parts' && <FoamPads length={prodL} width={prodW} height={prodH} thickness={insertTh} materialName={alternative?.foam_material} wireframe={wireframeMode} />}
                   {productSubView === 'packed_parts' && components.length === 0 ? (
                     <Html center>
                       <div className="w-64 rounded-lg border border-amber-300 bg-stone-950/95 p-4 text-center text-white shadow-xl">
@@ -677,7 +771,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
 
               {/* View 4: Exploded View with Sequence Slider */}
               {selectedView === 'exploded' && (
-                <group>
+                <group ref={activeViewRef}>
                   <MeasuredProduct
                     resolvedModel={modelResolution.model}
                     dimensions={{ length: pLength, width: pWidth, height: pHeight }}
@@ -688,6 +782,8 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
                     visible
                     onMeasure={recordProduct}
                   />
+
+                  {hasInserts && <FoamPads length={prodL} width={prodW} height={prodH} thickness={insertTh} materialName={alternative?.foam_material} wireframe={wireframeMode} />}
 
                   {/* Exploded Carton Shell */}
                   <group position={[0, -explodedFactor * outerH * 0.5, 0]}>
@@ -704,7 +800,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
 
             {/* Studio Floor Grid */}
             <Grid
-              position={[0, -outerH / 2 - 10, 0]}
+              position={[fitMetrics?.center[0] ?? 0, (fitMetrics?.minY ?? -outerH / 2) - 1, fitMetrics?.center[2] ?? 0]}
               args={[Math.max(outerL, outerW) * 3, Math.max(outerL, outerW) * 3]}
               cellSize={100}
               cellThickness={0.8}
@@ -721,9 +817,12 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
               makeDefault
               enableDamping
               dampingFactor={0.05}
-              minDistance={0.4}
-              maxDistance={Math.max(outerL, outerW, outerH) * 8}
+              enablePan
+              screenSpacePanning
+              minDistance={Math.max(1, Math.min(outerL, outerW, outerH) * 0.01)}
+              maxDistance={Math.max(outerL, outerW, outerH) * 20}
             />
+            <CameraAutoFit objectRef={activeViewRef} controlsRef={controlsRef} fitKey={fitKey} onFit={recordFit} />
           </Canvas>
         </div>
       </div>
@@ -739,10 +838,7 @@ export const PackagingViewer3D: React.FC<PackagingViewer3DProps> = ({
       {/* Bottom Provenance and Hint Bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-stone-950/90 border-t border-stone-800 text-[11px] text-stone-400">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-          <span className="font-medium text-stone-300">{modelResolution.label}</span>
-          <span className="text-stone-600">·</span>
-          <span>Upload CAD (STEP/STL) for exact geometry</span>
+          {modelResolution.isApproximate && <span data-testid="geometry-source" title={modelResolution.tooltip} className="rounded-full border border-stone-700 px-2 py-0.5 text-[10px] text-stone-300">{modelResolution.label} ⓘ</span>}
         </div>
         <div className="text-stone-500">
           Left-drag rotate · Scroll zoom · Right-drag pan

@@ -9,6 +9,8 @@ export interface ProductModelProject {
 export interface ProductModelResolution {
   model: 'blender' | 'stand_fan' | 'generic'
   label: string
+  tooltip: string
+  isApproximate: boolean
 }
 
 const labels: Record<ProductType, string> = {
@@ -45,14 +47,14 @@ export function inferProductType(text: string): ProductType | null {
 /** Single authority for model choice and its visible geometry provenance label. */
 export function resolveProductModel(project: ProductModelProject): ProductModelResolution {
   if (project.geometry_source === 'CAD' || project.provenance?.source_type === 'CAD_EXTRACTED') {
-    return { model: 'generic', label: 'CAD geometry bounds (mesh unavailable)' }
+    return { model: 'generic', label: 'Estimated geometry', tooltip: 'A shape is shown from the available CAD dimensions.', isApproximate: true }
   }
   if (project.geometry_source === 'photos') {
-    return { model: 'generic', label: 'Reconstructed from photos' }
+    return { model: 'generic', label: 'Estimated geometry', tooltip: 'A simplified shape is shown from photo references.', isApproximate: true }
   }
   const type = project.product_type
-  if (type === 'blender') return { model: 'blender', label: 'Approximate model for blender' }
-  if (type === 'stand_fan') return { model: 'stand_fan', label: 'Approximate model for stand fan' }
-  if (!type || type === 'other') return { model: 'generic', label: 'Generic shape — choose the product type' }
-  return { model: 'generic', label: `Generic shape for ${labels[type]}` }
+  if (type === 'blender') return { model: 'blender', label: 'Estimated geometry', tooltip: 'Simplified blender geometry based on the entered dimensions.', isApproximate: true }
+  if (type === 'stand_fan') return { model: 'stand_fan', label: 'Estimated geometry', tooltip: 'Simplified stand fan geometry based on the entered dimensions.', isApproximate: true }
+  if (!type || type === 'other') return { model: 'generic', label: 'Estimated geometry', tooltip: 'Generic shape based on the entered dimensions.', isApproximate: true }
+  return { model: 'generic', label: 'Estimated geometry', tooltip: `Generic shape based on the entered dimensions for ${labels[type]}.`, isApproximate: true }
 }

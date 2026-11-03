@@ -37,6 +37,7 @@ class SourceType(str, Enum):
     USER_ENTERED = "USER_ENTERED"
     CAD_EXTRACTED = "CAD_EXTRACTED"
     AI_ESTIMATED = "AI_ESTIMATED"
+    FROM_DESCRIPTION = "FROM_DESCRIPTION"
     DERIVED = "DERIVED"
     OFFICIAL_COMPANY = "OFFICIAL_COMPANY"
 
@@ -121,7 +122,7 @@ class ComponentInput(BaseModel):
 class ProductInput(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="Product Name")
     brand: str = Field(..., min_length=1, max_length=100, description="Brand name (e.g. Tornado, Toshiba)")
-    model: str = Field(..., min_length=1, max_length=100, description="Model Number (e.g. TSF-16W)")
+    model: Optional[str] = Field(None, max_length=100, description="Optional model number (e.g. TSF-16W)")
     sku: Optional[str] = Field(None, max_length=100, description="Stock Keeping Unit / Barcode")
     category: Optional[str] = Field(None, max_length=100)
     product_type: Literal[
@@ -150,10 +151,10 @@ class BaselinePackaging(BaseModel):
     carton_outer_width_mm: float = Field(..., gt=0, le=10000, description="Outer width in mm")
     carton_outer_height_mm: float = Field(..., gt=0, le=10000, description="Outer height in mm")
     board_type: str = Field(..., min_length=1, max_length=100, description="Flute type e.g. B, C, BC double wall")
-    board_thickness_mm: float = Field(..., gt=0, le=50, description="Wall thickness in mm")
+    board_thickness_mm: float = Field(..., ge=1, le=15, description="Corrugated board thickness in mm")
     carton_cost_per_unit: float = Field(..., ge=0, description="Carton unit cost")
     currency: str = Field(default="EGP", max_length=10)
-    units_per_pallet: int = Field(default=24, ge=1, le=10000)
+    units_per_pallet: Optional[int] = Field(default=None, ge=1, le=10000)
     pallet_type: str = Field(default="Euro Pallet 1200x800", max_length=100)
     notes: Optional[str] = Field(None, max_length=500)
     provenance: Optional[Provenance] = None
@@ -175,7 +176,7 @@ class PlannedPackaging(BaseModel):
     carton_outer_length_mm: float = Field(..., gt=0, le=10000)
     carton_outer_width_mm: float = Field(..., gt=0, le=10000)
     carton_outer_height_mm: float = Field(..., gt=0, le=10000)
-    board_thickness_mm: float = Field(default=4.0, gt=0, le=50)
+    board_thickness_mm: float = Field(default=4.0, ge=1, le=15)
     notes: Optional[str] = Field(None, max_length=500)
     provenance: Optional[Provenance] = None
 
@@ -443,11 +444,19 @@ class StandardsEvaluationResult(BaseModel):
 # ─────────────────────────────────────────────
 
 class ProductSearchRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=100, description="Model number, product name, or SKU")
+    query: Optional[str] = Field(None, min_length=1, max_length=100, description="Legacy combined product search query")
+    product_name: Optional[str] = Field(None, max_length=100)
+    model_number: Optional[str] = Field(None, max_length=100)
     brand: Optional[str] = Field(None, max_length=100)
     category: Optional[str] = Field(None, max_length=100)
     product_url: Optional[str] = Field(None, max_length=500)
     site_region: Optional[str] = Field("elarabygroup.com (EG)", max_length=100)
+
+    @model_validator(mode="after")
+    def require_search_term(self) -> "ProductSearchRequest":
+        if not any((self.query, self.product_name, self.model_number, self.product_url)):
+            raise ValueError("Enter a product name, model number/SKU, or product URL.")
+        return self
 
 
 class SpecStatus(str, Enum):
@@ -492,8 +501,8 @@ class ComponentSpec(BaseModel):
 class ProductCandidate(BaseModel):
     candidate_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    brand: str
-    model: str
+    brand: Optional[str] = None
+    model: Optional[str] = None
     sku: Optional[str] = None
     category: Optional[str] = None
     net_weight_kg: Optional[float] = None
@@ -548,6 +557,7 @@ class ProductSearchResponse(BaseModel):
     cached: bool = False
     source_url_used: Optional[str] = None
     status_message: str
+    diagnostics: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────────

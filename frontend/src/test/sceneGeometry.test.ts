@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
-import { boxSizeLWH, createBoxGeometryLWH, fitObjectToBounds, measureClearance } from '../components/viewer/sceneGeometry'
+import { boxSizeLWH, cameraFitDistance, createBoxGeometryLWH, fitObjectToBounds, measureClearance } from '../components/viewer/sceneGeometry'
 import { resolveProductModel } from '../components/viewer/productModel'
 import { PRODUCT_TYPES, type ProductType } from '../types'
 
@@ -12,6 +12,14 @@ const candidates = [
 const viewModes = ['box', 'inside', 'product', 'exploded', 'packed_parts']
 
 describe('millimetre scene convention and measured product placement', () => {
+  it('fits a perspective camera from the measured bounding sphere and FOV', () => {
+    const carton = { length: 878, width: 328, height: 478 }
+    const radius = Math.hypot(carton.length / 2, carton.width / 2, carton.height / 2)
+    const expected = (radius / Math.sin(THREE.MathUtils.degToRad(45) / 2)) * 1.3
+    expect(cameraFitDistance(radius, 45)).toBeCloseTo(expected, 8)
+    expect(() => cameraFitDistance(0, 45)).toThrow()
+  })
+
   it.each(PRODUCT_TYPES)('%s stays inside every candidate carton for every view', (productType: ProductType) => {
     const model = resolveProductModel({ product_type: productType })
     expect(model.model).toBe(productType === 'blender' ? 'blender' : productType === 'stand_fan' ? 'stand_fan' : 'generic')
@@ -60,7 +68,7 @@ describe('millimetre scene convention and measured product placement', () => {
   })
 
   it('uses a neutral generic shape for unknown types', () => {
-    expect(resolveProductModel({}).label).toBe('Generic shape — choose the product type')
+    expect(resolveProductModel({}).label).toBe('Estimated geometry')
     expect(resolveProductModel({ product_type: 'other' }).model).toBe('generic')
   })
 })

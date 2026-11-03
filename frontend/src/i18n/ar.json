@@ -176,6 +176,14 @@
     "optimizationDefaults": "افتراضيات التحسين",
     "defaultClearance": "إعداد الهامش الافتراضي",
     "apiStatus": "حالة اتصال API",
+    "foamLibraryTitle": "مواد التغليف ومنحنيات التوسيد",
+    "foamLibraryDescription": "تظل الخصائص غير المعروفة فارغة. تتطلب المنحنيات اسم المصدر ورابطه وتاريخ الاسترجاع.",
+    "foamLibraryImport": "استيراد CSV",
+    "foamLibraryExport": "تصدير CSV",
+    "foamLibrarySave": "حفظ المواد",
+    "foamLibrarySaving": "جارٍ الحفظ…",
+    "foamLibraryHelp": "حرّر الكثافة والسماكات المتاحة والتكلفة وملاحظات الاستدامة والبيئة ومنحنيات المورد بصيغة JSON. لا تستخدم الحسابات المواد المعطلة.",
+    "foamLibraryJsonLabel": "بيانات مكتبة مواد الرغوة بصيغة JSON",
     "connected": "متصل",
     "disconnected": "غير متصل"
   },
@@ -185,5 +193,28 @@
     "loadFailed": "فشل تحميل البيانات",
     "saveFailed": "فشل حفظ المشروع",
     "networkError": "خطأ في الشبكة — هل الخادم يعمل؟"
+  },
+  "recommendation": {
+    "foamTitle": "حساب الرغوة والتوسيد",
+    "foamNoCurve": "لم يتم حساب سماكة اعتماداً على منحنى",
+    "foamNoCurveWarning": "لا يوجد منحنى توسيد لهذه المادة — تقدير فقط، ويلزم التحقق المخبري",
+    "foamVolume": "حجم الرغوة",
+    "foamCostUnavailable": "التكلفة غير متاحة — أدخل تكلفة المادة",
+    "aiReasoningPending": "جارٍ إعداد تفسير الذكاء الاصطناعي بشكل منفصل عن النتيجة المحسوبة…"
+  },
+  "newProject": {
+    "validation": {
+      "summary": "يرجى تصحيح الحقول التالية قبل إنشاء التغليف.",
+      "serverInvalid": "الخادم رفض هذه القيمة. تحقق من حدود الحقل وتنسيقه.",
+      "fragilityRequired": "اختر فئة الهشاشة.",
+      "productTypeRequired": "اختر نوع المنتج.",
+      "requiredField": "أدخل قيمة لهذا الحقل المطلوب.",
+      "fields": {
+        "projectName": "اسم المشروع", "brand": "العلامة التجارية", "model": "الطراز", "productType": "نوع المنتج",
+        "weightKg": "الوزن الصافي", "fragility": "قابلية الكسر", "productL": "طول المنتج", "productW": "عرض المنتج",
+        "productH": "ارتفاع المنتج", "baseL": "طول الكرتونة", "baseW": "عرض الكرتونة", "baseH": "ارتفاع الكرتونة",
+        "boardType": "نوع اللوح", "boardThickness": "سماكة اللوح", "unitCost": "تكلفة الوحدة", "unitsPerPallet": "الوحدات لكل منصة", "sku": "رمز المنتج"
+      }
+    }
   }
 }

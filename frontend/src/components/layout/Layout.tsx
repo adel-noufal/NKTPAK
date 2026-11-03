@@ -28,12 +28,12 @@ export const Layout: React.FC = () => {
   return (
     <BackendHealth><div
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col font-sans"
+      className="h-screen overflow-hidden bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col font-sans"
     >
       <Navbar />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 relative">
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 relative">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>

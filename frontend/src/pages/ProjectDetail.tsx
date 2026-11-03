@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getProject, updateProject, reoptimizeProject } from '../api/projects'
 import { PackagingViewer3D } from '../components/viewer/PackagingViewer3D'
@@ -25,7 +25,10 @@ const tabs: { id: TabId; label: string }[] = [
 
 export const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const [activeTab, setActiveTab] = useState<TabId>('3d')
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<TabId>(
+    searchParams.get('tab') === 'recommendation' ? 'recommendation' : '3d',
+  )
   const [selectedAlt, setSelectedAlt] = useState<PackagingAlternative | null>(null)
   const [productTypeSaveError, setProductTypeSaveError] = useState<string | null>(null)
   const [editProductForm, setEditProductForm] = useState<Record<string, string> | null>(null)
@@ -123,6 +126,7 @@ export const ProjectDetail: React.FC = () => {
       product_type: productType,
       shipping_mode: String(productData.shipping_mode || ''),
       components: JSON.stringify(productData.components || [], null, 2),
+      foam_design_input: JSON.stringify(productData.foam_design_input || null, null, 2),
     })
   }
 
@@ -132,11 +136,15 @@ export const ProjectDetail: React.FC = () => {
       setEditProductError(null)
       const components = JSON.parse(editProductForm.components)
       if (!Array.isArray(components)) throw new Error('Components must be a JSON array.')
+      const foamDesignInput = JSON.parse(editProductForm.foam_design_input || 'null')
+      if (foamDesignInput !== null && (typeof foamDesignInput !== 'object' || Array.isArray(foamDesignInput))) {
+        throw new Error('Foam design input must be a JSON object or null.')
+      }
       const dimensions = { length: Number(editProductForm.length), width: Number(editProductForm.width), height: Number(editProductForm.height), unit: 'mm' }
       if (![dimensions.length, dimensions.width, dimensions.height].every((value) => Number.isFinite(value) && value > 0)) throw new Error('Enter positive product dimensions in millimetres.')
       const weight = Number(editProductForm.weight_kg)
       if (!Number.isFinite(weight) || weight <= 0) throw new Error('Enter a product weight greater than zero.')
-      const nextProductData = { ...productData, name: editProductForm.name, weight_kg: weight, product_type: editProductForm.product_type, shipping_mode: editProductForm.shipping_mode || null, packed_dimensions: dimensions, components }
+      const nextProductData = { ...productData, name: editProductForm.name, weight_kg: weight, product_type: editProductForm.product_type, shipping_mode: editProductForm.shipping_mode || null, packed_dimensions: dimensions, components, foam_design_input: foamDesignInput }
       await updateProject(project.project_id, { product_data: nextProductData })
       queryClient.setQueryData(['project', id], (current: any) => ({ ...current, product_data: nextProductData, components_data: components }))
       setEditProductForm(null)
@@ -165,6 +173,7 @@ export const ProjectDetail: React.FC = () => {
               <label className="space-y-1 text-xs"><span>Shipping mode</span><select value={editProductForm.shipping_mode} onChange={(event) => setEditProductForm({ ...editProductForm, shipping_mode: event.target.value })} className="w-full rounded border border-stone-300 bg-white px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"><option value="">Not specified</option><option value="courier_parcel">Courier / parcel</option><option value="ltl_pallet">LTL pallet</option><option value="full_truck">Full truckload</option><option value="container">Container</option><option value="ecommerce_marketplace">E-commerce marketplace</option></select></label>
             </div>
             <label className="block space-y-1 text-xs"><span>Product components (JSON array)</span><textarea rows={7} value={editProductForm.components} onChange={(event) => setEditProductForm({ ...editProductForm, components: event.target.value })} className="w-full rounded border border-stone-300 bg-white p-2 font-mono text-xs dark:border-stone-700 dark:bg-stone-800" /></label>
+            <label className="block space-y-1 text-xs"><span>Supplier-backed foam design inputs (JSON object or null)</span><textarea rows={8} value={editProductForm.foam_design_input} onChange={(event) => setEditProductForm({ ...editProductForm, foam_design_input: event.target.value })} placeholder={'{"material": {...}, "supports": [...], "drop_height_mm": ..., "fragility_limit_g": ..., "safety_factor": ...}'} className="w-full rounded border border-stone-300 bg-white p-2 font-mono text-xs dark:border-stone-700 dark:bg-stone-800" /><span className="text-[10px] text-stone-500">Use an enabled material record and measured support areas. Missing curves do not produce a calculated thickness.</span></label>
             {editProductError && <p role="alert" className="text-xs text-rose-600">{editProductError}</p>}
             <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditProductForm(null)} className="rounded border px-3 py-2 text-xs">Cancel</button><button type="submit" className="rounded bg-blue-700 px-3 py-2 text-xs font-semibold text-white">Save product data</button></div>
           </form>

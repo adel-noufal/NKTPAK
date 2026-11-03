@@ -47,6 +47,43 @@ def test_api_health_route():
         assert response.json()["status"] == "healthy"
 
 
+def test_post_exact_new_project_form_payload_returns_201(db_session):
+    """The payload built by the current New Project form must match the live API contract."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.database import get_db
+
+    payload = {
+        "name": "Tornado Blender BL500/2",
+        "description": "Tornado table blender, model BL500/2, 1.5L glass jug, 500W, net weight 3.2 kg, product dimensions 180 x 165 x 390 mm.",
+        "product": {
+            "name": "Tornado Blender BL500/2", "brand": "Tornado", "model": "BL500/2", "product_type": "blender",
+            "product_type_provenance": {"source_name": "From your description", "source_type": "FROM_DESCRIPTION", "is_edited": False},
+            "weight_kg": 3.2, "fragility_class": "MEDIUM",
+            "packed_dimensions": {"length": 180, "width": 165, "height": 390, "unit": "mm"},
+            "components": [], "images": [],
+            "provenance": {"source_name": "From your description", "source_type": "FROM_DESCRIPTION", "is_edited": False},
+        },
+        "components": [],
+        "baseline": {
+            "carton_outer_length_mm": 240, "carton_outer_width_mm": 225, "carton_outer_height_mm": 450,
+            "board_type": "BC Double Wall", "board_thickness_mm": 5, "carton_cost_per_unit": 22.5,
+            "currency": "EGP", "units_per_pallet": 16, "pallet_type": "Euro Pallet (1200 x 800 mm)",
+            "provenance": {"source_name": "From your description", "source_type": "FROM_DESCRIPTION", "is_edited": False},
+        },
+        "optimization_config": {"min_clearance_mm": 15, "standard_clearance_mm": 25, "generous_clearance_mm": 40},
+        "language": "en",
+    }
+    app.dependency_overrides[get_db] = lambda: db_session
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/projects", json=payload)
+        assert response.status_code == 201, response.text
+        assert response.json().get("project_id")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
 def test_empty_database_projects_list(db_session):
     """Production rule: database lists return empty state when no projects created."""
     # Ensure fresh query works
@@ -128,8 +165,9 @@ def test_fetch_product_typo_pipeline():
     """Searching 'tsd-16w' returns 'Did you mean TSF-16W?'."""
     req = ProductSearchRequest(query="tsd-16w")
     res = fetch_product_endpoint(req)
-    assert res.did_you_mean == "TSF-16W"
-    assert len(res.candidates) > 0
+    assert res.did_you_mean is None
+    assert res.candidates == []
+    assert "No products found" in res.status_message
 
 
 def test_admin_settings_endpoint(db_session):

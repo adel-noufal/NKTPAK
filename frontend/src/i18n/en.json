@@ -73,7 +73,20 @@
     "skipToForm": "Skip fetch — enter manually",
     "sec1Title": "1. Product Specifications",
     "sec2Title": "2. Current Baseline Packaging",
-    "sec3Title": "3. Engineering Clearance Assumptions"
+    "sec3Title": "3. Engineering Clearance Assumptions",
+    "validation": {
+      "summary": "Please correct these fields before generating packaging.",
+      "serverInvalid": "The server rejected this value. Check the field limits and format.",
+      "fragilityRequired": "Select a fragility class.",
+      "productTypeRequired": "Select a product type.",
+      "requiredField": "Enter a value for this required field.",
+      "fields": {
+        "projectName": "Project name", "brand": "Brand", "model": "Model", "productType": "Product type",
+        "weightKg": "Net weight", "fragility": "Fragility", "productL": "Product length", "productW": "Product width",
+        "productH": "Product height", "baseL": "Carton length", "baseW": "Carton width", "baseH": "Carton height",
+        "boardType": "Board type", "boardThickness": "Board thickness", "unitCost": "Unit cost", "unitsPerPallet": "Units per pallet", "sku": "SKU"
+      }
+    }
   },
   "settings": {
     "title": "System Settings & Engineering Defaults",
@@ -93,11 +106,27 @@
     "engineeringSectionDesc": "Default assumptions for clearances and corrugated board sheet costs.",
     "defaultClearance": "Default Clearance (mm)",
     "defaultBoardCost": "Default Board Cost per m²",
-    "currency": "Currency"
+    "currency": "Currency",
+    "foamLibraryTitle": "Packaging materials and cushion curves",
+    "foamLibraryDescription": "Unknown properties remain null. Curve records require supplier source name, URL, and retrieval date.",
+    "foamLibraryImport": "Import CSV",
+    "foamLibraryExport": "Export CSV",
+    "foamLibrarySave": "Save materials",
+    "foamLibrarySaving": "Saving…",
+    "foamLibraryHelp": "Edit density, available thicknesses, cost, sustainability and environmental notes, and supplier curves as JSON. Disabled materials are excluded from calculations.",
+    "foamLibraryJsonLabel": "Foam material library JSON"
   },
   "export": {
     "title": "Engineering Documentation & Production Exports",
     "subtitle": "Export verified engineering reports including formulas, packaging calculations, assumptions, and FEFCO 0201 cutting dielines."
+  },
+  "recommendation": {
+    "foamTitle": "Foam / cushioning calculation",
+    "foamNoCurve": "No curve-backed thickness calculated",
+    "foamNoCurveWarning": "No cushion curve for this material — estimate only, lab validation required",
+    "foamVolume": "Foam volume",
+    "foamCostUnavailable": "Cost not available — enter material cost",
+    "aiReasoningPending": "AI reasoning is being generated separately from the calculated result…"
   },
   "status": {
     "PASS": "PASS",

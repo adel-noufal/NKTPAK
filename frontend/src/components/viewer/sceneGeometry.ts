@@ -1,5 +1,12 @@
 import * as THREE from 'three'
 
+export function cameraFitDistance(radius: number, fovDegrees: number, margin = 1.3): number {
+  if (!Number.isFinite(radius) || radius <= 0 || !Number.isFinite(fovDegrees) || fovDegrees <= 0 || fovDegrees >= 180 || margin < 1) {
+    throw new Error('Camera fit requires a positive radius, a valid perspective field of view, and margin >= 1.')
+  }
+  return (radius / Math.sin(THREE.MathUtils.degToRad(fovDegrees) / 2)) * margin
+}
+
 export interface LWH { length: number; width: number; height: number }
 
 /** Three.js uses X,Y,Z; map package L,W,H to scene X=length, Y=height, Z=width. */

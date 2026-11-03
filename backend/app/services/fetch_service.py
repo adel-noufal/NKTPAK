@@ -8,12 +8,16 @@ specification evidence delivery. Zero invented data.
 from __future__ import annotations
 
 import logging
+import base64
+import json
 import re
 import urllib.parse
 import urllib.request
 import ipaddress
 import socket
+from html.parser import HTMLParser
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any
 
 from app.schemas.schemas import (
@@ -131,450 +135,7 @@ def fetch_html_content(url: str, timeout: int = 8) -> Optional[str]:
 # official websites, B2B datasheets, and major Egyptian retailers.
 # ─────────────────────────────────────────────────────────────────────────────
 
-CATALOG_SPECS_DATABASE: Dict[str, Dict[str, Any]] = {
-    "TSF16W": {
-        "model": "TSF-16W",
-        "brand": "Tornado",
-        "name": "Tornado Stand Fan 16 inch 4 Blades (White)",
-        "sku": "TSF-16W-WHT",
-        "category": "Fans",
-        "color": "White",
-        "power_voltage": "220V - 50Hz, 65W",
-        "dimensions_mm": {"length": 460.0, "width": 460.0, "height": 1250.0},
-        "carton_dimensions_mm": {"length": 555.0, "width": 255.0, "height": 454.0},
-        "net_weight_kg": 6.5,
-        "gross_weight_kg": 7.8,
-        "packed_dimensions_available": True,
-        "datasheet_url": "https://www.elarabygroup.com/datasheets/tornado-tsf-16w-datasheet.pdf",
-        "images": [
-            "https://www.elarabygroup.com/media/catalog/product/t/s/tsf-16w-front.jpg",
-            "https://www.elarabygroup.com/media/catalog/product/t/s/tsf-16w-side.jpg",
-            "https://www.elarabygroup.com/media/catalog/product/t/s/tsf-16w-box.jpg"
-        ],
-        "components": [
-            {
-                "name": "Base (Round Pedestal)",
-                "part_number": "TSF16W-P01",
-                "length_mm": 450.0,
-                "width_mm": 450.0,
-                "height_mm": 70.0,
-                "weight_kg": 1.8,
-                "quantity": 1,
-                "material": "Molded polymer with counterweight",
-                "fragile": False,
-                "notes": "Bottom round base with rubber vibration dampening feet."
-            },
-            {
-                "name": "Telescopic Stand Pole",
-                "part_number": "TSF16W-P02",
-                "length_mm": 650.0,
-                "width_mm": 45.0,
-                "height_mm": 45.0,
-                "weight_kg": 0.8,
-                "quantity": 1,
-                "material": "Brushed chrome-plated steel",
-                "fragile": False,
-                "notes": "Adjustable extension pole with locking screw collar."
-            },
-            {
-                "name": "Motor & Oscillation Head Assembly",
-                "part_number": "TSF16W-P03",
-                "length_mm": 220.0,
-                "width_mm": 180.0,
-                "height_mm": 260.0,
-                "weight_kg": 2.2,
-                "quantity": 1,
-                "material": "Copper wire motor, ABS housing",
-                "fragile": True,
-                "notes": "Electric motor with oscillation gearbox and pivot neck."
-            },
-            {
-                "name": "Wire Mesh Guard (Front & Rear Grilles)",
-                "part_number": "TSF16W-P04",
-                "length_mm": 460.0,
-                "width_mm": 460.0,
-                "height_mm": 120.0,
-                "weight_kg": 0.9,
-                "quantity": 1,
-                "material": "Powder-coated steel wire mesh",
-                "fragile": True,
-                "notes": "Interlocking circular guard grilles with perimeter ring clip."
-            },
-            {
-                "name": "Aerofoil Propeller Blades (4 Blades)",
-                "part_number": "TSF16W-P05",
-                "length_mm": 400.0,
-                "width_mm": 400.0,
-                "height_mm": 50.0,
-                "weight_kg": 0.3,
-                "quantity": 1,
-                "material": "Semi-flexible aerodynamic polymer",
-                "fragile": True,
-                "notes": "Balanced 4-wing propeller blade assembly with spinner nut."
-            },
-            {
-                "name": "Hardware Pack & Remote Control",
-                "part_number": "TSF16W-P06",
-                "length_mm": 150.0,
-                "width_mm": 100.0,
-                "height_mm": 50.0,
-                "weight_kg": 0.2,
-                "quantity": 1,
-                "material": "Assorted fasteners & IR remote",
-                "fragile": False,
-                "notes": "Mounting screws, thumb bolts, manual and remote control."
-            }
-        ],
-        "sources_checked": [
-            {"source": "El Araby Official Website", "status": "verified", "url": "https://www.elarabygroup.com/en/tornado-stand-fan-16-inch-tsf-16w"},
-            {"source": "El Araby Engineering Datasheet (PDF)", "status": "verified", "url": "https://www.elarabygroup.com/datasheets/tornado-tsf-16w-datasheet.pdf"},
-            {"source": "Jumia Egypt Official Flagship", "status": "verified", "url": "https://www.jumia.com.eg/tornado-stand-fan-16-inch-tsf-16w-34201.html"},
-            {"source": "Noon Egypt B2B Logistics", "status": "verified", "url": "https://www.noon.com/egypt-en/tornado-tsf-16w-fan-N192837"},
-            {"source": "Amazon Egypt Logistics", "status": "verified", "url": "https://www.amazon.eg/dp/B07NXTPAK01"}
-        ],
-        "evidence": {
-            "product_dimensions": {
-                "value": {"length": 460.0, "width": 460.0, "height": 1250.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {
-                        "source_name": "El Araby Official Website",
-                        "source_url": "https://www.elarabygroup.com/en/tornado-stand-fan-16-inch-tsf-16w",
-                        "snippet": "Product Assembled Dimensions: 460 x 460 x 1250 mm (adjustable height)",
-                        "fetched_at": "2026-10-31",
-                        "confidence": 0.99,
-                        "is_official": True
-                    },
-                    {
-                        "source_name": "Jumia Egypt",
-                        "source_url": "https://www.jumia.com.eg/tornado-stand-fan-16-inch-tsf-16w-34201.html",
-                        "snippet": "Size: 46 x 46 x 125 cm · 16 Inch Guard",
-                        "fetched_at": "2026-10-31",
-                        "confidence": 0.94,
-                        "is_official": False
-                    }
-                ]
-            },
-            "carton_dimensions": {
-                "value": {"length": 555.0, "width": 255.0, "height": 454.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {
-                        "source_name": "El Araby Engineering Datasheet (PDF)",
-                        "source_url": "https://www.elarabygroup.com/datasheets/tornado-tsf-16w-datasheet.pdf",
-                        "snippet": "Carton Dimensions (Flat-Pack Disassembled): 555 × 255 × 454 mm",
-                        "fetched_at": "2026-10-31",
-                        "confidence": 0.99,
-                        "is_official": True
-                    },
-                    {
-                        "source_name": "Noon Egypt B2B Logistics",
-                        "source_url": "https://www.noon.com/egypt-en/tornado-tsf-16w-fan-N192837",
-                        "snippet": "Package Dimensions: 55.5 x 25.5 x 45.4 cm · Gross Weight: 7.8 kg",
-                        "fetched_at": "2026-10-31",
-                        "confidence": 0.95,
-                        "is_official": False
-                    }
-                ]
-            },
-            "net_weight": {
-                "value": 6.5,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {
-                        "source_name": "El Araby Official Website",
-                        "source_url": "https://www.elarabygroup.com/en/tornado-stand-fan-16-inch-tsf-16w",
-                        "snippet": "Net Weight: 6.5 Kg",
-                        "fetched_at": "2026-10-31",
-                        "confidence": 0.99,
-                        "is_official": True
-                    }
-                ]
-            },
-            "gross_weight": {
-                "value": 7.8,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {
-                        "source_name": "El Araby Engineering Datasheet (PDF)",
-                        "source_url": "https://www.elarabygroup.com/datasheets/tornado-tsf-16w-datasheet.pdf",
-                        "snippet": "Gross Weight (Carton + Corrugated Inserts): 7.8 Kg",
-                        "fetched_at": "2026-10-31",
-                        "confidence": 0.99,
-                        "is_official": True
-                    }
-                ]
-            }
-        }
-    },
-    "TSF16X": {
-        "model": "TSF-16X",
-        "brand": "Tornado",
-        "name": "Tornado Stand Fan 16 inch with Timer & Remote",
-        "sku": "TSF-16X-SLV",
-        "category": "Fans",
-        "color": "Silver / Charcoal",
-        "power_voltage": "220V - 50Hz, 65W",
-        "dimensions_mm": {"length": 460.0, "width": 460.0, "height": 1280.0},
-        "carton_dimensions_mm": {"length": 560.0, "width": 260.0, "height": 460.0},
-        "net_weight_kg": 6.8,
-        "gross_weight_kg": 8.1,
-        "packed_dimensions_available": True,
-        "datasheet_url": "https://www.elarabygroup.com/datasheets/tornado-tsf-16x-datasheet.pdf",
-        "images": [
-            "https://www.elarabygroup.com/media/catalog/product/t/s/tsf-16x-front.jpg"
-        ],
-        "components": [
-            {"name": "Weighted Base", "length_mm": 450.0, "width_mm": 450.0, "height_mm": 70.0, "weight_kg": 1.9, "quantity": 1, "material": "Polymer & Steel"},
-            {"name": "Pole Assembly", "length_mm": 670.0, "width_mm": 45.0, "height_mm": 45.0, "weight_kg": 0.8, "quantity": 1, "material": "Steel"},
-            {"name": "Motor Unit with Timer", "length_mm": 230.0, "width_mm": 185.0, "height_mm": 265.0, "weight_kg": 2.4, "quantity": 1, "material": "ABS / Motor"},
-            {"name": "Wire Grille Cage", "length_mm": 460.0, "width_mm": 460.0, "height_mm": 120.0, "weight_kg": 0.9, "quantity": 1, "material": "Steel Wire"},
-            {"name": "Propeller Blades", "length_mm": 400.0, "width_mm": 400.0, "height_mm": 50.0, "weight_kg": 0.3, "quantity": 1, "material": "ABS"},
-            {"name": "Hardware & Remote", "length_mm": 150.0, "width_mm": 100.0, "height_mm": 50.0, "weight_kg": 0.2, "quantity": 1, "material": "Electronics"}
-        ],
-        "sources_checked": [
-            {"source": "El Araby Official Website", "status": "verified", "url": "https://www.elarabygroup.com/en/tornado-stand-fan-16-inch-tsf-16x"},
-            {"source": "El Araby Datasheet", "status": "verified", "url": "https://www.elarabygroup.com/datasheets/tsf-16x-specs.pdf"},
-            {"source": "B.Tech Egypt", "status": "verified", "url": "https://btech.com/en/tornado-tsf-16x.html"}
-        ],
-        "evidence": {
-            "product_dimensions": {
-                "value": {"length": 460.0, "width": 460.0, "height": 1280.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/tornado-stand-fan-16-inch-tsf-16x", "snippet": "Assembled Size: 460 x 460 x 1280 mm", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            },
-            "carton_dimensions": {
-                "value": {"length": 560.0, "width": 260.0, "height": 460.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Datasheet", "source_url": "https://www.elarabygroup.com/datasheets/tsf-16x-specs.pdf", "snippet": "Package Size: 560 x 260 x 460 mm", "fetched_at": "2026-10-31", "confidence": 0.97, "is_official": True}
-                ]
-            },
-            "net_weight": {
-                "value": 6.8,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/tornado-stand-fan-16-inch-tsf-16x", "snippet": "Net Weight: 6.8 kg", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            },
-            "gross_weight": {
-                "value": 8.1,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Datasheet", "source_url": "https://www.elarabygroup.com/datasheets/tsf-16x-specs.pdf", "snippet": "Gross Weight: 8.1 kg", "fetched_at": "2026-10-31", "confidence": 0.97, "is_official": True}
-                ]
-            }
-        }
-    },
-    "BL5002": {
-        "model": "BL500/2",
-        "brand": "Tornado",
-        "name": "Tornado Electric Table Blender 500W 1.5L with 2 Mills",
-        "sku": "BL500-2-BLK",
-        "category": "Blenders",
-        "color": "Black / Stainless Steel",
-        "power_voltage": "220V - 50Hz, 500W",
-        "dimensions_mm": {"length": 180.0, "width": 165.0, "height": 390.0},
-        "carton_dimensions_mm": {"length": 220.0, "width": 200.0, "height": 420.0},
-        "net_weight_kg": 3.2,
-        "gross_weight_kg": 3.8,
-        "packed_dimensions_available": True,
-        "datasheet_url": "https://www.elarabygroup.com/datasheets/tornado-blender-bl500-2.pdf",
-        "images": [
-            "https://www.elarabygroup.com/media/catalog/product/b/l/bl500-2-main.jpg"
-        ],
-        "components": [
-            {"name": "Blender Motor Base", "length_mm": 180.0, "width_mm": 165.0, "height_mm": 190.0, "weight_kg": 1.8, "quantity": 1, "material": "ABS & Stainless housing"},
-            {"name": "Glass Jug 1.5L with Handle", "length_mm": 160.0, "width_mm": 150.0, "height_mm": 240.0, "weight_kg": 0.9, "quantity": 1, "material": "Tempered glass (fragile)"},
-            {"name": "Grinding Mills (2x)", "length_mm": 100.0, "width_mm": 100.0, "height_mm": 120.0, "weight_kg": 0.3, "quantity": 2, "material": "Glass & Stainless"},
-            {"name": "Lid with Measuring Cap", "length_mm": 130.0, "width_mm": 130.0, "height_mm": 35.0, "weight_kg": 0.2, "quantity": 1, "material": "Silicone & Plastic"}
-        ],
-        "sources_checked": [
-            {"source": "El Araby Official Website", "status": "verified", "url": "https://www.elarabygroup.com/en/tornado-electric-blender-bl500-2"},
-            {"source": "El Araby Datasheet", "status": "verified", "url": "https://www.elarabygroup.com/datasheets/bl500-2-spec.pdf"},
-            {"source": "Carrefour Egypt", "status": "verified", "url": "https://www.carrefouregypt.com/mafegy/en/blenders/tornado-bl500-2"}
-        ],
-        "evidence": {
-            "product_dimensions": {
-                "value": {"length": 180.0, "width": 165.0, "height": 390.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/tornado-electric-blender-bl500-2", "snippet": "Assembled: 180 x 165 x 390 mm", "fetched_at": "2026-10-31", "confidence": 0.99, "is_official": True}
-                ]
-            },
-            "carton_dimensions": {
-                "value": {"length": 220.0, "width": 200.0, "height": 420.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Datasheet", "source_url": "https://www.elarabygroup.com/datasheets/bl500-2-spec.pdf", "snippet": "Carton: 220 x 200 x 420 mm", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            },
-            "net_weight": {
-                "value": 3.2,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/tornado-electric-blender-bl500-2", "snippet": "Net weight: 3.2 kg", "fetched_at": "2026-10-31", "confidence": 0.99, "is_official": True}
-                ]
-            },
-            "gross_weight": {
-                "value": 3.8,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Datasheet", "source_url": "https://www.elarabygroup.com/datasheets/bl500-2-spec.pdf", "snippet": "Gross weight: 3.8 kg", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            }
-        }
-    },
-    "VH720": {
-        "model": "VH-720",
-        "brand": "Toshiba",
-        "name": "Toshiba Semi-Automatic Washing Machine 7 Kg Dual Tub",
-        "sku": "VH-720-WHT",
-        "category": "Washing Machines",
-        "color": "White",
-        "power_voltage": "220V - 50Hz",
-        "dimensions_mm": {"length": 828.0, "width": 492.0, "height": 990.0},
-        "carton_dimensions_mm": {"length": 870.0, "width": 535.0, "height": 1030.0},
-        "net_weight_kg": 21.0,
-        "gross_weight_kg": 24.5,
-        "packed_dimensions_available": True,
-        "datasheet_url": "https://www.elarabygroup.com/datasheets/toshiba-vh-720-datasheet.pdf",
-        "images": [
-            "https://www.elarabygroup.com/media/catalog/product/v/h/vh-720.jpg"
-        ],
-        "components": [
-            {"name": "Washing Machine Cabinet & Dual Tub", "length_mm": 828.0, "width_mm": 492.0, "height_mm": 990.0, "weight_kg": 20.0, "quantity": 1, "material": "Polypropylene & Steel"},
-            {"name": "Drain Hose & Accessories", "length_mm": 400.0, "width_mm": 200.0, "height_mm": 100.0, "weight_kg": 1.0, "quantity": 1, "material": "Rubber & Plastic"}
-        ],
-        "sources_checked": [
-            {"source": "El Araby Official Website", "status": "verified", "url": "https://www.elarabygroup.com/en/toshiba-half-automatic-washing-machine-vh-720"},
-            {"source": "El Araby Datasheet", "status": "verified", "url": "https://www.elarabygroup.com/datasheets/vh-720.pdf"}
-        ],
-        "evidence": {
-            "product_dimensions": {
-                "value": {"length": 828.0, "width": 492.0, "height": 990.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/toshiba-half-automatic-washing-machine-vh-720", "snippet": "Dimensions: 828 x 492 x 990 mm", "fetched_at": "2026-10-31", "confidence": 0.99, "is_official": True}
-                ]
-            },
-            "carton_dimensions": {
-                "value": {"length": 870.0, "width": 535.0, "height": 1030.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Datasheet", "source_url": "https://www.elarabygroup.com/datasheets/vh-720.pdf", "snippet": "Package size: 870 x 535 x 1030 mm", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            },
-            "net_weight": {
-                "value": 21.0,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/toshiba-half-automatic-washing-machine-vh-720", "snippet": "Net Weight: 21 kg", "fetched_at": "2026-10-31", "confidence": 0.99, "is_official": True}
-                ]
-            },
-            "gross_weight": {
-                "value": 24.5,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Datasheet", "source_url": "https://www.elarabygroup.com/datasheets/vh-720.pdf", "snippet": "Gross Weight: 24.5 kg", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            }
-        }
-    },
-    "43ES9500E": {
-        "model": "43ES9500E",
-        "brand": "Sharp",
-        "name": "Sharp 43 Inch Full HD LED Smart TV",
-        "sku": "43ES9500E-BLK",
-        "category": "TVs",
-        "color": "Black",
-        "power_voltage": "100-240V 50/60Hz, 75W",
-        "dimensions_mm": {"length": 969.0, "width": 73.0, "height": 567.0},
-        "carton_dimensions_mm": {"length": 1080.0, "width": 135.0, "height": 655.0},
-        "net_weight_kg": 7.2,
-        "gross_weight_kg": 9.5,
-        "packed_dimensions_available": True,
-        "datasheet_url": "https://www.elarabygroup.com/datasheets/sharp-43es9500e.pdf",
-        "images": [
-            "https://www.elarabygroup.com/media/catalog/product/4/3/43es9500e.jpg"
-        ],
-        "components": [
-            {"name": "43\" LED Display Panel", "length_mm": 969.0, "width_mm": 73.0, "height_mm": 567.0, "weight_kg": 6.8, "quantity": 1, "material": "Glass & Polymer bezel", "fragile": True},
-            {"name": "Pedestal Stand Feet (Pair)", "length_mm": 210.0, "width_mm": 45.0, "height_mm": 60.0, "weight_kg": 0.3, "quantity": 1, "material": "Metal alloy"},
-            {"name": "Remote & Cable Pack", "length_mm": 200.0, "width_mm": 100.0, "height_mm": 40.0, "weight_kg": 0.1, "quantity": 1, "material": "Accessories"}
-        ],
-        "sources_checked": [
-            {"source": "El Araby Official Website", "status": "verified", "url": "https://www.elarabygroup.com/en/sharp-43-inch-smart-tv-43es9500e"},
-            {"source": "Sharp Technical Sheet", "status": "verified", "url": "https://www.elarabygroup.com/datasheets/sharp-43es9500e.pdf"}
-        ],
-        "evidence": {
-            "product_dimensions": {
-                "value": {"length": 969.0, "width": 73.0, "height": 567.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/sharp-43-inch-smart-tv-43es9500e", "snippet": "Dimensions without stand: 969 x 73 x 567 mm", "fetched_at": "2026-10-31", "confidence": 0.99, "is_official": True}
-                ]
-            },
-            "carton_dimensions": {
-                "value": {"length": 1080.0, "width": 135.0, "height": 655.0},
-                "unit": "mm",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "Sharp Technical Sheet", "source_url": "https://www.elarabygroup.com/datasheets/sharp-43es9500e.pdf", "snippet": "Package Carton Size: 1080 x 135 x 655 mm", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            },
-            "net_weight": {
-                "value": 7.2,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "El Araby Official Website", "source_url": "https://www.elarabygroup.com/en/sharp-43-inch-smart-tv-43es9500e", "snippet": "Net weight: 7.2 kg", "fetched_at": "2026-10-31", "confidence": 0.99, "is_official": True}
-                ]
-            },
-            "gross_weight": {
-                "value": 9.5,
-                "unit": "kg",
-                "status": "verified",
-                "sources": [
-                    {"source_name": "Sharp Technical Sheet", "source_url": "https://www.elarabygroup.com/datasheets/sharp-43es9500e.pdf", "snippet": "Package Weight: 9.5 kg", "fetched_at": "2026-10-31", "confidence": 0.98, "is_official": True}
-                ]
-            }
-        }
-    }
-}
-
-
-# Known catalog index list
-KNOWN_CATALOG_MODELS = [
-    {"model": "TSF-16W", "brand": "Tornado", "name": "Tornado Stand Fan 16 inch 4 Blades", "category": "Fans"},
-    {"model": "TSF-16X", "brand": "Tornado", "name": "Tornado Stand Fan 16 inch with Timer", "category": "Fans"},
-    {"model": "BL500/2", "brand": "Tornado", "name": "Tornado Electric Blender 500W 1.5L with 2 Mills", "category": "Blenders"},
-    {"model": "MX5200/2", "brand": "Tornado", "name": "Tornado Blender 500W with 2 Grinders", "category": "Blenders"},
-    {"model": "EFS-111", "brand": "Toshiba", "name": "Toshiba Stand Fan 16 inch 4 Blades", "category": "Fans"},
-    {"model": "EFS-77", "brand": "Toshiba", "name": "Toshiba Stand Fan 16 inch 3 Blades", "category": "Fans"},
-    {"model": "VH-720", "brand": "Toshiba", "name": "Toshiba Half Automatic Washing Machine 7 Kg", "category": "Washing Machines"},
-    {"model": "TWD-39", "brand": "Tornado", "name": "Tornado Water Dispenser Hot and Cold", "category": "Water Dispensers"},
-    {"model": "43ES9500E", "brand": "Sharp", "name": "Sharp 43 Inch Full HD LED Smart TV", "category": "TVs"},
-]
+CATALOG_SPECS_DATABASE: Dict[str, Dict[str, Any]] = {}
 
 
 def extract_specs_from_html(html: str, source_url: str) -> Dict[str, Any]:
@@ -659,6 +220,237 @@ def extract_specs_from_html(html: str, source_url: str) -> Dict[str, Any]:
     return specs
 
 
+def _gemini_grounded_product_search(query: str, product_name: str = "", model_number: str = "", brand_filter: str = "") -> tuple[List[ProductCandidate], Dict[str, Any]]:
+    """Search real web pages through Gemini Google Search grounding. Grounding only supplies page identity, never invented dimensions."""
+    from app.services.assistant_service import get_llm_config
+
+    config = get_llm_config()
+    diagnostic: Dict[str, Any] = {"source": "Gemini Google Search", "status": "not_configured", "count": 0}
+    if config.get("provider") != "gemini" or not config.get("api_key"):
+        diagnostic["error"] = "Gemini with a configured API key is required for web search."
+        return [], diagnostic
+
+    model = str(config.get("model") or "gemini-2.5-flash").replace("models/", "")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    prompt = (
+        "Find relevant real product listing or manufacturer pages for this product search: " + query +
+        ". Use Google Search. Do not invent products, URLs, model numbers, or specifications. "
+        "Return a concise list of page titles and model numbers only when visible in sourced pages."
+    )
+    payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}], "tools": [{"google_search": {}}]}
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-goog-api-key": config["api_key"]},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            body = json.loads(exc.read().decode("utf-8", errors="replace"))
+            detail = str(body.get("error", {}).get("message") or body.get("error", {}).get("status") or exc.reason)
+        except Exception:
+            detail = str(exc.reason)
+        diagnostic.update({"status": "error", "error": f"Gemini Google Search returned HTTP {exc.code}: {detail}"})
+        return [], diagnostic
+    except Exception as exc:
+        diagnostic.update({"status": "error", "error": f"Gemini Google Search failed: {type(exc).__name__}."})
+        return [], diagnostic
+
+    chunks = data.get("candidates", [{}])[0].get("groundingMetadata", {}).get("groundingChunks", [])
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    candidates: List[ProductCandidate] = []
+    seen_urls: set[str] = set()
+    brand_names = ("Tornado", "Toshiba", "Sharp")
+    model_pattern = re.compile(r"\b[A-Z]{2,}[A-Z0-9]*(?:[-/][A-Z0-9]+)+\b|\b[A-Z]{2,}\d{2,}[A-Z0-9]*\b", re.I)
+    for chunk in chunks:
+        web = chunk.get("web") or {}
+        title = str(web.get("title") or "").strip()
+        page_url = str(web.get("uri") or "").strip()
+        if not title or not page_url.startswith(("https://", "http://")) or page_url in seen_urls:
+            continue
+        host = urllib.parse.urlparse(page_url).hostname or ""
+        clean_host = host.removeprefix("www.").casefold()
+        if (
+            title.casefold().removeprefix("www.") == clean_host
+            or title.casefold().startswith("vertexaisearch.")
+            or re.fullmatch(r"(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+", title.casefold())
+        ):
+            continue
+        query_terms = [part.casefold() for part in product_name.split() if len(part) > 2]
+        normalized_title = re.sub(r"[^A-Z0-9]", "", title.upper())
+        normalized_model = re.sub(r"[^A-Z0-9]", "", model_number.upper())
+        if brand_filter and brand_filter.casefold() not in title.casefold():
+            continue
+        if normalized_model and normalized_model not in normalized_title:
+            continue
+        seen_urls.add(page_url)
+        brand = brand_filter if brand_filter and brand_filter.casefold() in title.casefold() else next((value for value in brand_names if value.casefold() in title.casefold()), None)
+        model_match = model_pattern.search(title)
+        model_value = model_number or (model_match.group(0) if model_match else None)
+        source_type = SourceType.EL_ARABY_WEBSITE if "elarabygroup.com" in host.casefold() else SourceType.PUBLIC_RETAIL
+        candidates.append(ProductCandidate(
+            name=title,
+            brand=brand,
+            model=model_value,
+            source_url=page_url,
+            source_type=source_type,
+            confidence_score=0.75,
+            dimensions_mm=None,
+            carton_dimensions_mm=None,
+            net_weight_kg=None,
+            gross_weight_kg=None,
+            packed_dimensions_available=False,
+            provenance=Provenance(
+                source_name="Gemini Google Search grounding",
+                source_url=page_url,
+                retrieval_date=today,
+                source_type=source_type,
+                confidence=0.75,
+                evidence_snippet="Page title and URL returned in Google Search grounding metadata; specifications not verified.",
+            ),
+        ))
+    diagnostic.update({"status": "success" if candidates else "no_results", "count": len(candidates), "pages": [{"title": (chunk.get("web") or {}).get("title"), "url": (chunk.get("web") or {}).get("uri")} for chunk in chunks if (chunk.get("web") or {}).get("title") and (chunk.get("web") or {}).get("uri")]})
+    if not candidates:
+        diagnostic["error"] = "The returned page titles did not match the product name or model closely enough to create candidate cards."
+    return candidates, diagnostic
+
+
+class _BingResultParser(HTMLParser):
+    """Extract only title links from Bing's live organic result blocks."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.results: list[tuple[str, str]] = []
+        self._result_depth = 0
+        self._in_title = False
+        self._href: str | None = None
+        self._title: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        classes = (values.get("class") or "").split()
+        if tag == "li" and "b_algo" in classes:
+            self._result_depth = 1
+        elif self._result_depth and tag == "li":
+            self._result_depth += 1
+        if self._result_depth and tag == "h2":
+            self._in_title = True
+            self._href = None
+            self._title = []
+        elif self._in_title and tag == "a":
+            self._href = values.get("href")
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title:
+            self._title.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "h2" and self._in_title:
+            title = " ".join("".join(self._title).split())
+            if title and self._href:
+                self.results.append((title, self._href))
+            self._in_title = False
+        elif tag == "li" and self._result_depth:
+            self._result_depth -= 1
+
+
+def _bing_web_product_search(query: str, product_name: str = "", model_number: str = "", brand_filter: str = "") -> tuple[List[ProductCandidate], Dict[str, Any]]:
+    """Free public web search fallback; candidate fields come only from result pages."""
+    diagnostic: Dict[str, Any] = {"source": "Bing Web Search", "status": "error", "count": 0, "pages": []}
+    if not query.strip():
+        diagnostic.update({"status": "no_results", "error": "Enter a product name to search the web."})
+        return [], diagnostic
+    search_url = "https://www.bing.com/search?" + urllib.parse.urlencode({"q": query, "count": 10, "cc": "EG", "setlang": "en"})
+    try:
+        request = urllib.request.Request(search_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36", "Accept-Language": "en-US,en;q=0.9"})
+        with urllib.request.urlopen(request, timeout=12) as response:
+            html = response.read().decode("utf-8", errors="replace")
+    except Exception as exc:
+        diagnostic["error"] = f"Web search failed ({type(exc).__name__}). Retry the search."
+        return [], diagnostic
+
+    parser = _BingResultParser()
+    parser.feed(html)
+    selected: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    model_key = re.sub(r"[^A-Z0-9]", "", model_number.upper())
+    for title, result_url in parser.results:
+        parsed = urllib.parse.urlparse(result_url)
+        if (parsed.hostname or "").casefold().endswith("bing.com") and parsed.path.startswith("/ck/a"):
+            encoded_target = urllib.parse.parse_qs(parsed.query).get("u", [""])[0]
+            if encoded_target.startswith("a1"):
+                try:
+                    decoded = base64.urlsafe_b64decode(encoded_target[2:] + "=" * (-len(encoded_target[2:]) % 4)).decode("utf-8")
+                    result_url = decoded if decoded.startswith(("http://", "https://")) else result_url
+                    parsed = urllib.parse.urlparse(result_url)
+                except (ValueError, UnicodeDecodeError):
+                    continue
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            continue
+        if parsed.hostname.casefold().endswith("bing.com"):
+            continue
+        if brand_filter and brand_filter.casefold() not in title.casefold():
+            continue
+        normalized_title = re.sub(r"[^A-Z0-9]", "", title.upper())
+        if model_key and model_key not in normalized_title:
+            continue
+        canonical_url = urllib.parse.urlunparse(parsed._replace(fragment=""))
+        if canonical_url not in seen:
+            selected.append((title, canonical_url))
+            seen.add(canonical_url)
+        if len(selected) >= 8:
+            break
+
+    def extract_page(page: tuple[str, str]) -> dict[str, Any]:
+        _, page_url = page
+        page_html = fetch_html_content(page_url, timeout=5)
+        return extract_specs_from_html(page_html, page_url) if page_html else {}
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        extracted_pages = list(pool.map(extract_page, selected[:5]))
+    candidates: List[ProductCandidate] = []
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    brand_names = tuple(EL_ARABY_BRANDS)
+    model_pattern = re.compile(r"\b[A-Z]{2,}[A-Z0-9]*(?:[-/][A-Z0-9]+)+\b|\b[A-Z]{2,}\d{2,}[A-Z0-9]*\b", re.I)
+    for index, (title, page_url) in enumerate(selected):
+        extracted = extracted_pages[index] if index < len(extracted_pages) else {}
+        host = urllib.parse.urlparse(page_url).hostname or ""
+        brand = extracted.get("brand") or (brand_filter if brand_filter and brand_filter.casefold() in title.casefold() else next((known for known in brand_names if known.casefold() in title.casefold()), None))
+        model_match = model_pattern.search(title)
+        dimensions = extracted.get("dimensions_mm")
+        image_url = extracted.get("image_url")
+        candidates.append(ProductCandidate(
+            name=extracted.get("name") or title,
+            brand=brand,
+            model=extracted.get("model") or (model_number or (model_match.group(0) if model_match else None)),
+            sku=extracted.get("sku"),
+            category=extracted.get("category"),
+            net_weight_kg=extracted.get("weight_kg"),
+            gross_weight_kg=extracted.get("gross_weight_kg"),
+            dimensions_mm=dimensions,
+            carton_dimensions_mm=extracted.get("carton_dimensions_mm"),
+            image_url=image_url,
+            images=[image_url] if image_url else [],
+            source_url=page_url,
+            source_type=SourceType.EL_ARABY_WEBSITE if "elarabygroup.com" in host.casefold() else SourceType.PUBLIC_RETAIL,
+            confidence_score=0.75 if extracted else 0.6,
+            packed_dimensions_available=extracted.get("carton_dimensions_mm") is not None,
+            provenance=Provenance(
+                source_name=host.removeprefix("www."), source_url=page_url, retrieval_date=today,
+                source_type=SourceType.EL_ARABY_WEBSITE if "elarabygroup.com" in host.casefold() else SourceType.PUBLIC_RETAIL,
+                confidence=0.75 if extracted else 0.6,
+                evidence_snippet="Product title and link from live web search; any specifications shown were extracted from this source page.",
+            ),
+        ))
+    diagnostic.update({"status": "success" if candidates else "no_results", "count": len(candidates), "pages": [{"title": title, "url": url} for title, url in selected]})
+    if not candidates:
+        diagnostic["error"] = "The web search returned no usable product pages for this query."
+    return candidates, diagnostic
+
+
 def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
     """
     Production-grade product search pipeline:
@@ -668,32 +460,14 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
     4. Fuzzy typo suggestion ('Did you mean?').
     5. Side-by-side multiple candidate generation with physical specs.
     """
-    raw_query = req.query.strip()
+    product_name = (req.product_name or "").strip()
+    model_number = (req.model_number or "").strip()
+    raw_query = (req.query or "").strip() or " ".join(part for part in (product_name, model_number, req.brand or "") if part).strip()
     norm_query = normalize_query_string(raw_query)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # 1. Check runtime cache
-    db = SessionLocal()
-    try:
-        cache_entry = db.query(ProductCache).filter(ProductCache.cache_key == norm_query).first()
-        if cache_entry and cache_entry.data and not getattr(req, "force_refresh", False):
-            logger.info("Returning cached product data for query: %s", raw_query)
-            candidates = [ProductCandidate(**c) for c in cache_entry.data.get("candidates", [])]
-            return ProductSearchResponse(
-                query=raw_query,
-                normalized_query=norm_query,
-                candidates=candidates,
-                exact_match=cache_entry.data.get("exact_match", len(candidates) > 0 and cache_entry.data.get("did_you_mean") is None),
-                did_you_mean=cache_entry.data.get("did_you_mean"),
-                cached=True,
-                status_message="Loaded from verified catalog cache.",
-            )
-    except Exception as e:
-        logger.warning("Cache query notice: %s", e)
-    finally:
-        db.close()
-
     candidates: List[ProductCandidate] = []
+    diagnostics: List[Dict[str, Any]] = []
     did_you_mean: Optional[str] = None
     direct_url = req.product_url.strip() if req.product_url else None
 
@@ -702,9 +476,15 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
         html = fetch_html_content(direct_url)
         if html:
             extracted = extract_specs_from_html(html, direct_url)
-            model_val = extracted.get("model") or raw_query
-            brand_val = extracted.get("brand") or req.brand or "El Araby Group"
-            name_val = extracted.get("name") or f"{brand_val} {model_val}"
+            model_val = extracted.get("model")
+            name_val = extracted.get("name")
+            brand_val = extracted.get("brand") or req.brand
+            if not model_val or not name_val or not brand_val:
+                return ProductSearchResponse(
+                    query=raw_query, normalized_query=norm_query, candidates=[], exact_match=False,
+                    cached=False, source_url_used=direct_url,
+                    status_message="The page was reachable, but did not expose a product name, brand, and model that could be verified.",
+                )
 
             candidate = ProductCandidate(
                 name=name_val,
@@ -733,6 +513,18 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
                 ),
             )
             candidates.append(candidate)
+            diagnostics.append({"source": "Direct product page", "status": "success", "count": 1})
+        else:
+            diagnostics.append({"source": "Direct product page", "status": "error", "count": 0, "error": "Page could not be fetched. Check the URL, robots policy, or site response."})
+
+    if not direct_url:
+        grounded_candidates, diagnostic = _gemini_grounded_product_search(raw_query, product_name, model_number, req.brand or "")
+        candidates.extend(grounded_candidates)
+        diagnostics.append(diagnostic)
+        if not grounded_candidates:
+            web_candidates, web_diagnostic = _bing_web_product_search(raw_query, product_name, model_number, req.brand or "")
+            candidates.extend(web_candidates)
+            diagnostics.append(web_diagnostic)
 
     # 3. Match against Enriched Catalog Database with full physical dimensions
     from app.services.catalog_index import search_catalog, get_item_by_model
@@ -833,31 +625,8 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
             )
             candidates.append(cand)
 
-    # 4. Save in runtime cache (only if real candidates found)
-    if candidates:
-        db = SessionLocal()
-        try:
-            cache_obj = ProductCache(
-                cache_key=norm_query,
-                source_url=candidates[0].source_url,
-                brand=candidates[0].brand,
-                model=candidates[0].model,
-                data={
-                    "candidates": [c.model_dump() for c in candidates],
-                    "did_you_mean": did_you_mean,
-                    "exact_match": len(candidates) > 0 and did_you_mean is None,
-                },
-                expires_at=datetime.now(timezone.utc) + timedelta(days=7),
-            )
-            db.merge(cache_obj)
-            db.commit()
-        except Exception as e:
-            logger.warning("Cache write notice: %s", e)
-        finally:
-            db.close()
-
     status_msg = (
-        f"Found {len(candidates)} verified candidate(s) for '{raw_query}'."
+        f"Found {len(candidates)} sourced product page(s) for '{raw_query}'. Product specifications are not verified yet."
         if candidates
         else (f"No direct match found. Did you mean '{did_you_mean}'?" if did_you_mean else f"No products found for '{raw_query}'. You can enter specifications manually or upload a CAD model.")
     )
@@ -866,10 +635,11 @@ def search_product_pipeline(req: ProductSearchRequest) -> ProductSearchResponse:
         query=raw_query,
         normalized_query=norm_query,
         candidates=candidates,
-        exact_match=len(candidates) > 0 and did_you_mean is None,
+        exact_match=any(candidate.model and normalize_query_string(candidate.model) == norm_query for candidate in candidates),
         did_you_mean=did_you_mean,
         cached=False,
         status_message=status_msg,
+        diagnostics=diagnostics,
     )
 
 
@@ -899,7 +669,13 @@ def get_candidate_specs_by_id(candidate_id: str, candidate_model: Optional[str] 
         if not matched_spec and candidate_model:
             matched_spec = get_item_by_model(candidate_model)
         if not matched_spec:
-            matched_spec = CATALOG_SPECS_DATABASE["TSF16W"]
+            return CandidateSpecsResponse(
+                candidate_id=candidate_id, name="", brand="", model=candidate_model or "",
+                product_dimensions=ProductSpecField(), carton_dimensions=ProductSpecField(),
+                net_weight=ProductSpecField(), gross_weight=ProductSpecField(),
+                packed_dimensions_available=False,
+                not_found_message="No published specifications were found for this candidate.",
+            )
 
     # Build ProductSpecFields
     ev = matched_spec.get("evidence", {})

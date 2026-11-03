@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import json
+import re
 import urllib.request
 from typing import Optional, List, Dict, Any
 
@@ -302,8 +303,26 @@ def get_assistant_reply(
     provider = llm_cfg["provider"]
     model = llm_cfg["model"]
 
-    # 1. Unconfigured state: NEVER pretend to be AI with canned text!
+    # Keep page context bounded and explicitly allow-listed; never accept secrets from clients.
+    page_state = {}
+    if isinstance(page_context, dict):
+        allowed = {"route", "page_title", "active_view", "fields", "missing_fields", "validation_errors", "selected_candidate", "visible_errors", "search_query"}
+        page_state = {key: page_context[key] for key in allowed if key in page_context}
+    # 1. Unconfigured state: answer simple page-state questions deterministically.
     if not api_key:
+        message_lower = message.casefold()
+        missing = page_state.get("missing_fields")
+        if isinstance(missing, list) and any(term in message_lower for term in ("missing", "required", "what do i need", "ما المعلومات", "الناقص", "مطلوب")):
+            labels = [str(value) for value in missing if isinstance(value, str)]
+            if labels:
+                reply = ("Required information still missing: " + ", ".join(labels) + ".")
+                if re.search(r"[\u0600-\u06ff]", message):
+                    reply = "المعلومات المطلوبة الناقصة: " + "، ".join(labels) + "."
+            else:
+                reply = "No required fields are missing on this form."
+                if re.search(r"[\u0600-\u06ff]", message):
+                    reply = "لا توجد حقول مطلوبة ناقصة في هذا النموذج."
+            return AssistantResponse(reply=reply, mode="offline", provider_name=provider, model_name=model, tools_called=["get_validation_errors"], fields_cited=["missing_fields"])
         return AssistantResponse(
             reply=(
                 "⚠️ **AI Assistant is not configured.**\n\n"
@@ -333,7 +352,7 @@ def get_assistant_reply(
         "RULES: Always use real data from the project context. Never invent dimensions, specifications, or compliance certificates. "
         "Explain McKee box compression, volume utilization, and material savings with exact formulas. "
         "If answering in Arabic, use professional Egyptian packaging engineering terminology. "
-        f"Project Context: {json.dumps(project_context)}"
+        f"Page State: {json.dumps(page_state, ensure_ascii=False)}\nProject Context: {json.dumps(project_context, ensure_ascii=False)}"
     )
 
     try:

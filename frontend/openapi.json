@@ -1,0 +1,5018 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NxtPak AI",
+    "description": "NxtPak AI recommends right-sized packaging, displays 3D views (Exterior/Interior), calculates material & cost savings, and evaluates against the ISO packaging standards registry.",
+    "version": "1.0.0-milestone1"
+  },
+  "paths": {
+    "/api/v1/projects": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create Project Endpoint",
+        "description": "Create a project with full validation.\nRuns optimization pipeline against baseline and returns calculated results.",
+        "operationId": "create_project_endpoint_api_v1_projects_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Project Endpoint Api V1 Projects Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List Projects Endpoint",
+        "description": "List saved projects with global search and filtering.",
+        "operationId": "list_projects_endpoint_api_v1_projects_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search by name, brand, model, SKU",
+              "title": "Search"
+            },
+            "description": "Search by name, brand, model, SKU"
+          },
+          {
+            "name": "brand",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by brand",
+              "title": "Brand"
+            },
+            "description": "Filter by brand"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            },
+            "description": "Filter by status"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Projects Endpoint Api V1 Projects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Project Endpoint",
+        "description": "Get project details and computed results.",
+        "operationId": "get_project_endpoint_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Project Endpoint Api V1 Projects  Project Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update Project Endpoint",
+        "description": "Partial update of project.",
+        "operationId": "update_project_endpoint_api_v1_projects__project_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Update Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Project Endpoint Api V1 Projects  Project Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Delete Project Endpoint",
+        "description": "Delete a project.",
+        "operationId": "delete_project_endpoint_api_v1_projects__project_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/optimize": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Reoptimize Project Endpoint",
+        "description": "Re-run optimization pipeline for an existing project.",
+        "operationId": "reoptimize_project_endpoint_api_v1_projects__project_id__optimize_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fetch-product": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Fetch Product Endpoint",
+        "description": "Real dynamic product lookup pipeline:\nSearches web/brand sites, normalizes queries, detects typos ('Did you mean?'),\nand returns multiple candidates for side-by-side selection.",
+        "operationId": "fetch_product_endpoint_api_v1_fetch_product_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search/autocomplete": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Search Autocomplete Endpoint",
+        "description": "Provide real-time autocomplete suggestions for models, categories, and brands.",
+        "operationId": "search_autocomplete_endpoint_api_v1_search_autocomplete_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Query for suggestions",
+              "default": "",
+              "title": "Q"
+            },
+            "description": "Query for suggestions"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/browse": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Catalog Browse Endpoint",
+        "description": "Browse catalog mode: returns category breakdown and items with complete specs.",
+        "operationId": "catalog_browse_endpoint_api_v1_catalog_browse_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category filter",
+              "title": "Category"
+            },
+            "description": "Category filter"
+          },
+          {
+            "name": "brand",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Brand filter",
+              "title": "Brand"
+            },
+            "description": "Brand filter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/test-search-provider": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Test Search Provider Endpoint",
+        "description": "Test connection and latency for external search providers (Serper, Tavily, Brave, Google).",
+        "operationId": "test_search_provider_endpoint_api_v1_test_search_provider_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchProviderTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/brands": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List Brands Endpoint",
+        "description": "List available brands for the dropdown.",
+        "operationId": "list_brands_endpoint_api_v1_brands_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response List Brands Endpoint Api V1 Brands Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fetch-product/{candidate_id}/specs": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Product Specs Endpoint",
+        "description": "Return multi-source cross-checked specifications, component breakdown and evidence.",
+        "operationId": "get_product_specs_endpoint_api_v1_fetch_product__candidate_id__specs_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSpecsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Product Specs Endpoint",
+        "description": "Return multi-source cross-checked specifications, component breakdown and evidence.",
+        "operationId": "get_product_specs_endpoint_api_v1_fetch_product__candidate_id__specs_get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSpecsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/estimate-dimensions": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Estimate Dimensions Endpoint",
+        "description": "Explicit user-requested AI estimate for unlisted product dimensions.",
+        "operationId": "estimate_dimensions_endpoint_api_v1_estimate_dimensions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Estimate Dimensions Endpoint Api V1 Estimate Dimensions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/upload-model": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Upload Model Endpoint",
+        "description": "Upload real CAD file (STL, OBJ, 3MF, STEP, DXF, PDF).\nExtracts real bounding dimensions, volume, surface area, and mesh health.",
+        "operationId": "upload_model_endpoint_api_v1_upload_model_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_model_endpoint_api_v1_upload_model_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Upload Model Endpoint Api V1 Upload Model Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assistant": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Assistant Endpoint",
+        "description": "Page-aware AI assistant with tool calling.\nReturns clear 'AI not configured' state if no key is set.",
+        "operationId": "assistant_endpoint_api_v1_assistant_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Settings Endpoint",
+        "description": "Retrieve system settings.",
+        "operationId": "get_settings_endpoint_api_v1_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update Settings Endpoint",
+        "description": "Update system settings (API keys, clearances, currency).",
+        "operationId": "update_settings_endpoint_api_v1_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/foam-materials": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Foam Materials Endpoint",
+        "description": "Return the editable supplier cushioning library, without fabricated material data.",
+        "operationId": "get_foam_materials_endpoint_api_v1_settings_foam_materials_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CushionMaterial"
+                  },
+                  "type": "array",
+                  "title": "Response Get Foam Materials Endpoint Api V1 Settings Foam Materials Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update Foam Materials Endpoint",
+        "description": "Persist material properties and sourced cushioning curves.",
+        "operationId": "update_foam_materials_endpoint_api_v1_settings_foam_materials_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/CushionMaterial"
+                },
+                "type": "array",
+                "title": "Materials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CushionMaterial"
+                  },
+                  "type": "array",
+                  "title": "Response Update Foam Materials Endpoint Api V1 Settings Foam Materials Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/export": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Export Project Endpoint",
+        "description": "Generate and download PDF, HTML, JSON, or DXF dieline.",
+        "operationId": "export_project_endpoint_api_v1_projects__project_id__export_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm-models": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List Llm Models Endpoint",
+        "description": "Return the list of text-generation models for the given provider.\nFor Gemini: fetches live from the Generative Language API.\nFor Anthropic/OpenAI: returns a curated static list.\nThe API key is accepted as a query param ONLY for this discovery call;\nit is never logged or returned to the client.",
+        "operationId": "list_llm_models_endpoint_api_v1_llm_models_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "gemini",
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/test-llm-connection": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Test Llm Connection Endpoint",
+        "description": "Send a minimal ping request to the configured LLM.\nReturns: {success, latency_ms, model_used, provider, error?}\nError text is in plain English \u2014 no raw HTTP or markdown.",
+        "operationId": "test_llm_connection_endpoint_api_v1_test_llm_connection_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LLMTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/extract-from-description": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Extract From Description Endpoint",
+        "description": "Parse a free-text project description (English or Arabic) into structured fields.\nUses hybrid deterministic regex extraction + LLM enrichment when available.\nGuarantees extraction works even when offline or without an API key.",
+        "operationId": "extract_from_description_endpoint_api_v1_extract_from_description_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DescriptionExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDraft"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/recommendation": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Project Recommendation Endpoint",
+        "description": "Get or compute the active AI Recommendation for a project.\nGrounded in real product specs, McKee BCT calculation, and Euro Pallet geometry.",
+        "operationId": "get_project_recommendation_endpoint_api_v1_projects__project_id__recommendation_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Generate Project Recommendation Endpoint",
+        "description": "Force regenerate an AI packaging recommendation.",
+        "operationId": "generate_project_recommendation_endpoint_api_v1_projects__project_id__recommendation_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/recommendation/reasoning": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Reason Project Recommendation Endpoint",
+        "description": "Run optional AI reasoning after the deterministic recommendation is available.",
+        "operationId": "reason_project_recommendation_endpoint_api_v1_projects__project_id__recommendation_reasoning_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/recommendation/refine": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Refine Project Recommendation Endpoint",
+        "description": "Refine recommendation using natural language prompt (e.g. 'make it cheaper', 'lock carton height 450')\nor locked dimension constraints. Re-verifies all engineering constraints deterministically.",
+        "operationId": "refine_project_recommendation_endpoint_api_v1_projects__project_id__recommendation_refine_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefinementRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/recommendation/accept": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Accept Recommendation Candidate Endpoint",
+        "description": "Set one of the recommendation alternatives as the project's active design.",
+        "operationId": "accept_recommendation_candidate_endpoint_api_v1_projects__project_id__recommendation_accept_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/recommendation/feedback": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Submit Recommendation Feedback Endpoint",
+        "description": "Save user feedback (accept / reject with reason) for record-keeping.",
+        "operationId": "submit_recommendation_feedback_endpoint_api_v1_projects__project_id__recommendation_feedback_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationFeedback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/standards": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List Standards Registry Endpoint",
+        "description": "Return the editable, database-backed ISO and ISTA metadata catalog.",
+        "operationId": "list_standards_registry_endpoint_api_v1_standards_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create Standards Catalog Entry",
+        "operationId": "create_standards_catalog_entry_api_v1_standards_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StandardsCatalogEntryInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List Notifications",
+        "operationId": "list_notifications_api_v1_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Mark Notification Read",
+        "operationId": "mark_notification_read_api_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Notification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Mark All Notifications Read",
+        "operationId": "mark_all_notifications_read_api_v1_notifications_read_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/standards/{entry_id}": {
+      "put": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update Standards Catalog Entry",
+        "operationId": "update_standards_catalog_entry_api_v1_standards__entry_id__put",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StandardsCatalogEntryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/standards/test-plan": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Generate Standards Test Plan Endpoint",
+        "description": "Suggest applicable procedures without specifying lab test levels.",
+        "operationId": "generate_standards_test_plan_endpoint_api_v1_standards_test_plan_post",
+        "parameters": [
+          {
+            "name": "weight_kg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Product weight in kg",
+              "title": "Weight Kg"
+            },
+            "description": "Product weight in kg"
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Shipping mode",
+              "title": "Channel"
+            },
+            "description": "Shipping mode"
+          },
+          {
+            "name": "fragility",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Fragility class",
+              "default": "MEDIUM",
+              "title": "Fragility"
+            },
+            "description": "Fragility class"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Generate Standards Test Plan Endpoint",
+        "description": "Suggest applicable procedures without specifying lab test levels.",
+        "operationId": "generate_standards_test_plan_endpoint_api_v1_standards_test_plan_get",
+        "parameters": [
+          {
+            "name": "weight_kg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Product weight in kg",
+              "title": "Weight Kg"
+            },
+            "description": "Product weight in kg"
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Shipping mode",
+              "title": "Channel"
+            },
+            "description": "Shipping mode"
+          },
+          {
+            "name": "fragility",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Fragility class",
+              "default": "MEDIUM",
+              "title": "Fragility"
+            },
+            "description": "Fragility class"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/test-plan": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get Project Test Plan",
+        "operationId": "get_project_test_plan_api_v1_projects__project_id__test_plan_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/image-proxy": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Image Proxy Endpoint",
+        "description": "Safely proxy product images (e.g. from El Araby Group official catalog)\nto bypass browser CORS restrictions and hotlink blocks. Validates against SSRF.",
+        "operationId": "image_proxy_endpoint_api_v1_image_proxy_get",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "External image URL to proxy",
+              "title": "Url"
+            },
+            "description": "External image URL to proxy"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Health Check",
+        "description": "Basic health check and system information including real LLM status.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Health Check",
+        "description": "Basic health check and system information including real LLM status.",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Check Api Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Root Endpoint",
+        "description": "Root welcome endpoint with docs link.",
+        "operationId": "root_endpoint__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Root Endpoint  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminSettingsResponse": {
+        "properties": {
+          "llm_provider": {
+            "type": "string",
+            "title": "Llm Provider",
+            "default": "anthropic"
+          },
+          "llm_model": {
+            "type": "string",
+            "title": "Llm Model",
+            "default": "claude-3-5-sonnet-20241022"
+          },
+          "llm_configured": {
+            "type": "boolean",
+            "title": "Llm Configured",
+            "default": false
+          },
+          "default_clearance_mm": {
+            "type": "number",
+            "title": "Default Clearance Mm",
+            "default": 20.0
+          },
+          "default_board_cost_per_m2": {
+            "type": "number",
+            "title": "Default Board Cost Per M2",
+            "default": 25.0
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "EGP"
+          }
+        },
+        "type": "object",
+        "title": "AdminSettingsResponse"
+      },
+      "AdminSettingsUpdate": {
+        "properties": {
+          "llm_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Provider"
+          },
+          "llm_api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Api Key"
+          },
+          "llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Model"
+          },
+          "default_clearance_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Clearance Mm"
+          },
+          "default_board_cost_per_m2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 500.0,
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Board Cost Per M2"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "type": "object",
+        "title": "AdminSettingsUpdate"
+      },
+      "AssistantMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "AssistantMessage"
+      },
+      "AssistantRequest": {
+        "properties": {
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "page_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Context"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessage"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "AssistantRequest"
+      },
+      "AssistantResponse": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "offline"
+            ],
+            "title": "Mode"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "tools_called": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools Called"
+          },
+          "fields_cited": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields Cited"
+          },
+          "disclaimer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disclaimer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply",
+          "mode"
+        ],
+        "title": "AssistantResponse"
+      },
+      "BaselinePackaging": {
+        "properties": {
+          "carton_outer_length_mm": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Carton Outer Length Mm",
+            "description": "Outer length in mm"
+          },
+          "carton_outer_width_mm": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Carton Outer Width Mm",
+            "description": "Outer width in mm"
+          },
+          "carton_outer_height_mm": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Carton Outer Height Mm",
+            "description": "Outer height in mm"
+          },
+          "board_type": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Board Type",
+            "description": "Flute type e.g. B, C, BC double wall"
+          },
+          "board_thickness_mm": {
+            "type": "number",
+            "maximum": 15.0,
+            "minimum": 1.0,
+            "title": "Board Thickness Mm",
+            "description": "Corrugated board thickness in mm"
+          },
+          "carton_cost_per_unit": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Carton Cost Per Unit",
+            "description": "Carton unit cost"
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 10,
+            "title": "Currency",
+            "default": "EGP"
+          },
+          "units_per_pallet": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units Per Pallet"
+          },
+          "pallet_type": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Pallet Type",
+            "default": "Euro Pallet 1200x800"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "carton_outer_length_mm",
+          "carton_outer_width_mm",
+          "carton_outer_height_mm",
+          "board_type",
+          "board_thickness_mm",
+          "carton_cost_per_unit"
+        ],
+        "title": "BaselinePackaging"
+      },
+      "Body_upload_model_endpoint_api_v1_upload_model_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_model_endpoint_api_v1_upload_model_post"
+      },
+      "CandidateSpecsResponse": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "brand": {
+            "type": "string",
+            "title": "Brand"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "product_dimensions": {
+            "$ref": "#/components/schemas/ProductSpecField"
+          },
+          "carton_dimensions": {
+            "$ref": "#/components/schemas/ProductSpecField"
+          },
+          "net_weight": {
+            "$ref": "#/components/schemas/ProductSpecField"
+          },
+          "gross_weight": {
+            "$ref": "#/components/schemas/ProductSpecField"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSpec"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "power_voltage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power Voltage"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "datasheet_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datasheet Url"
+          },
+          "sources_checked": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sources Checked"
+          },
+          "summary_bar": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Summary Bar"
+          },
+          "packed_dimensions_available": {
+            "type": "boolean",
+            "title": "Packed Dimensions Available",
+            "default": true
+          },
+          "not_found_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Found Message"
+          },
+          "similar_products_for_estimate": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Similar Products For Estimate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "name",
+          "brand",
+          "model",
+          "product_dimensions",
+          "carton_dimensions",
+          "net_weight",
+          "gross_weight"
+        ],
+        "title": "CandidateSpecsResponse"
+      },
+      "ComponentInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "length_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Mm"
+          },
+          "width_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Mm"
+          },
+          "height_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Mm"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Quantity",
+            "default": 1
+          },
+          "fragility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FragilityClass"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ComponentInput",
+        "description": "A packed component (part as shipped, not assembled)."
+      },
+      "ComponentSpec": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "part_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Number"
+          },
+          "length_mm": {
+            "type": "number",
+            "title": "Length Mm"
+          },
+          "width_mm": {
+            "type": "number",
+            "title": "Width Mm"
+          },
+          "height_mm": {
+            "type": "number",
+            "title": "Height Mm"
+          },
+          "weight_kg": {
+            "type": "number",
+            "title": "Weight Kg"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material"
+          },
+          "fragile": {
+            "type": "boolean",
+            "title": "Fragile",
+            "default": false
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "length_mm",
+          "width_mm",
+          "height_mm",
+          "weight_kg"
+        ],
+        "title": "ComponentSpec"
+      },
+      "CushionCurve": {
+        "properties": {
+          "thickness_mm": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Thickness Mm"
+          },
+          "drop_height_mm": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Drop Height Mm"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CushionCurvePoint"
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thickness_mm",
+          "drop_height_mm",
+          "points"
+        ],
+        "title": "CushionCurve"
+      },
+      "CushionCurvePoint": {
+        "properties": {
+          "static_stress_kpa": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Static Stress Kpa"
+          },
+          "peak_deceleration_g": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Peak Deceleration G"
+          }
+        },
+        "type": "object",
+        "required": [
+          "static_stress_kpa",
+          "peak_deceleration_g"
+        ],
+        "title": "CushionCurvePoint"
+      },
+      "CushionMaterial": {
+        "properties": {
+          "material_id": {
+            "type": "string",
+            "title": "Material Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "material_type": {
+            "type": "string",
+            "title": "Material Type"
+          },
+          "density_kg_m3": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Density Kg M3"
+          },
+          "available_thicknesses_mm": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Available Thicknesses Mm"
+          },
+          "cost_per_m3": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per M3"
+          },
+          "cost_per_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Kg"
+          },
+          "sustainability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sustainability Note"
+          },
+          "temperature_humidity_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Humidity Notes"
+          },
+          "cushion_curves": {
+            "items": {
+              "$ref": "#/components/schemas/CushionCurve"
+            },
+            "type": "array",
+            "title": "Cushion Curves"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "retrieval_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Date"
+          },
+          "is_edited": {
+            "type": "boolean",
+            "title": "Is Edited",
+            "default": false
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "material_id",
+          "name",
+          "material_type"
+        ],
+        "title": "CushionMaterial"
+      },
+      "DescriptionExtractRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language",
+            "default": "en"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "DescriptionExtractRequest"
+      },
+      "DimensionUnit": {
+        "type": "string",
+        "enum": [
+          "mm",
+          "cm",
+          "m",
+          "inch"
+        ],
+        "title": "DimensionUnit"
+      },
+      "DimensionsInput": {
+        "properties": {
+          "length": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Length",
+            "description": "Length in specified unit"
+          },
+          "width": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "description": "Width in specified unit"
+          },
+          "height": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "description": "Height in specified unit"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/DimensionUnit",
+            "default": "mm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "length",
+          "width",
+          "height"
+        ],
+        "title": "DimensionsInput"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "field_errors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "ExtractedField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance",
+            "default": "AI_ESTIMATED"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "missing": {
+            "type": "boolean",
+            "title": "Missing",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "title": "ExtractedField"
+      },
+      "FoamDesignResult": {
+        "properties": {
+          "material_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Id"
+          },
+          "material_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CURVE_EVALUATED",
+              "NO_CURVE",
+              "INVALID_INPUT"
+            ],
+            "title": "Status"
+          },
+          "calculation_label": {
+            "type": "string",
+            "title": "Calculation Label",
+            "default": "Calculation, to be validated in a lab"
+          },
+          "safety_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safety Factor"
+          },
+          "drop_height_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drop Height Mm"
+          },
+          "fragility_limit_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fragility Limit G"
+          },
+          "supports": {
+            "items": {
+              "$ref": "#/components/schemas/FoamSupportResult"
+            },
+            "type": "array",
+            "title": "Supports"
+          },
+          "selected_thickness_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Thickness Mm"
+          },
+          "estimated_peak_deceleration_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Peak Deceleration G"
+          },
+          "protection_margin_g": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protection Margin G"
+          },
+          "foam_volume_mm3": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foam Volume Mm3"
+          },
+          "foam_weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foam Weight Kg"
+          },
+          "foam_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foam Cost"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "FoamDesignResult"
+      },
+      "FoamSupportResult": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "carried_weight_kg": {
+            "type": "number",
+            "title": "Carried Weight Kg"
+          },
+          "bearing_area_mm2": {
+            "type": "number",
+            "title": "Bearing Area Mm2"
+          },
+          "static_stress_kpa": {
+            "type": "number",
+            "title": "Static Stress Kpa"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "carried_weight_kg",
+          "bearing_area_mm2",
+          "static_stress_kpa"
+        ],
+        "title": "FoamSupportResult"
+      },
+      "FragilityClass": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "VERY_HIGH"
+        ],
+        "title": "FragilityClass"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LLMTestRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "anthropic"
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "LLMTestRequest"
+      },
+      "OptimizationConfig": {
+        "properties": {
+          "min_clearance_mm": {
+            "type": "number",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Min Clearance Mm",
+            "default": 15.0
+          },
+          "standard_clearance_mm": {
+            "type": "number",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Standard Clearance Mm",
+            "default": 25.0
+          },
+          "generous_clearance_mm": {
+            "type": "number",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Generous Clearance Mm",
+            "default": 40.0
+          },
+          "board_thickness_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Board Thickness Mm",
+            "default": 4.0
+          },
+          "insert_thickness_mm": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Insert Thickness Mm",
+            "default": 20.0
+          },
+          "assumption_label": {
+            "type": "string",
+            "title": "Assumption Label",
+            "default": "ENGINEERING_ASSUMPTION"
+          }
+        },
+        "type": "object",
+        "title": "OptimizationConfig"
+      },
+      "PackoutStep": {
+        "properties": {
+          "step_number": {
+            "type": "integer",
+            "title": "Step Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "component_involved": {
+            "type": "string",
+            "title": "Component Involved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_number",
+          "title",
+          "description",
+          "component_involved"
+        ],
+        "title": "PackoutStep"
+      },
+      "PlannedPackaging": {
+        "properties": {
+          "carton_outer_length_mm": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Carton Outer Length Mm"
+          },
+          "carton_outer_width_mm": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Carton Outer Width Mm"
+          },
+          "carton_outer_height_mm": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Carton Outer Height Mm"
+          },
+          "board_thickness_mm": {
+            "type": "number",
+            "maximum": 15.0,
+            "minimum": 1.0,
+            "title": "Board Thickness Mm",
+            "default": 4.0
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "carton_outer_length_mm",
+          "carton_outer_width_mm",
+          "carton_outer_height_mm"
+        ],
+        "title": "PlannedPackaging"
+      },
+      "ProductCandidate": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "net_weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Weight Kg"
+          },
+          "gross_weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Weight Kg"
+          },
+          "dimensions_mm": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dimensions Mm"
+          },
+          "carton_dimensions_mm": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carton Dimensions Mm"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "datasheet_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datasheet Url"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType",
+            "default": "PUBLIC_RETAIL"
+          },
+          "confidence_score": {
+            "type": "number",
+            "title": "Confidence Score",
+            "default": 0.85
+          },
+          "specs_table": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Specs Table"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSpec"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "sources_checked": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sources Checked"
+          },
+          "packed_dimensions_available": {
+            "type": "boolean",
+            "title": "Packed Dimensions Available",
+            "default": true
+          },
+          "not_found_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Found Message"
+          },
+          "spec_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ProductSpecField"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spec Fields"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "source_url",
+          "provenance"
+        ],
+        "title": "ProductCandidate"
+      },
+      "ProductInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Product Name"
+          },
+          "brand": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Brand",
+            "description": "Brand name (e.g. Tornado, Toshiba)"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Optional model number (e.g. TSF-16W)"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku",
+            "description": "Stock Keeping Unit / Barcode"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "product_type": {
+            "type": "string",
+            "enum": [
+              "blender",
+              "stand_fan",
+              "ceiling_fan",
+              "washing_machine",
+              "refrigerator",
+              "air_conditioner",
+              "tv",
+              "kettle",
+              "microwave",
+              "water_heater",
+              "other"
+            ],
+            "title": "Product Type",
+            "description": "Saved product type used to select a parametric model",
+            "default": "other"
+          },
+          "product_type_provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shipping_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "courier_parcel",
+                  "ltl_pallet",
+                  "full_truck",
+                  "container",
+                  "ecommerce_marketplace"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipping Mode"
+          },
+          "weight_kg": {
+            "type": "number",
+            "maximum": 5000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Weight Kg",
+            "description": "Net weight in kg (>0)"
+          },
+          "fragility_class": {
+            "$ref": "#/components/schemas/FragilityClass",
+            "description": "Fragility class (LOW, MEDIUM, HIGH, VERY_HIGH)"
+          },
+          "fragility_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fragility Note"
+          },
+          "packed_dimensions": {
+            "$ref": "#/components/schemas/DimensionsInput",
+            "description": "Product dimensions L x W x H"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentInput"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "brand",
+          "weight_kg",
+          "fragility_class",
+          "packed_dimensions"
+        ],
+        "title": "ProductInput"
+      },
+      "ProductSearchRequest": {
+        "properties": {
+          "query": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query",
+            "description": "Legacy combined product search query"
+          },
+          "product_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Name"
+          },
+          "model_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Number"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "product_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Url"
+          },
+          "site_region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Region",
+            "default": "elarabygroup.com (EG)"
+          }
+        },
+        "type": "object",
+        "title": "ProductSearchRequest"
+      },
+      "ProductSearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "normalized_query": {
+            "type": "string",
+            "title": "Normalized Query"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ProductCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "exact_match": {
+            "type": "boolean",
+            "title": "Exact Match"
+          },
+          "did_you_mean": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Did You Mean"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached",
+            "default": false
+          },
+          "source_url_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url Used"
+          },
+          "status_message": {
+            "type": "string",
+            "title": "Status Message"
+          },
+          "diagnostics": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "normalized_query",
+          "candidates",
+          "exact_match",
+          "status_message"
+        ],
+        "title": "ProductSearchResponse"
+      },
+      "ProductSpecField": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SpecStatus",
+            "default": "missing"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceEvidence"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "conflict_values": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conflict Values"
+          }
+        },
+        "type": "object",
+        "title": "ProductSpecField"
+      },
+      "ProjectCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductInput"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/BaselinePackaging"
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlannedPackaging"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentInput"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "optimization_config": {
+            "$ref": "#/components/schemas/OptimizationConfig"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ar"
+            ],
+            "title": "Language",
+            "default": "en"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "product",
+          "baseline"
+        ],
+        "title": "ProjectCreate"
+      },
+      "ProjectDraft": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "model_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Number"
+          },
+          "product_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Type"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "product_length_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Length Mm"
+          },
+          "product_width_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Width Mm"
+          },
+          "product_height_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Height Mm"
+          },
+          "net_weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Weight Kg"
+          },
+          "fragility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fragility"
+          },
+          "carton_length_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carton Length Mm"
+          },
+          "carton_width_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carton Width Mm"
+          },
+          "carton_height_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carton Height Mm"
+          },
+          "board_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Board Type"
+          },
+          "units_per_carton": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units Per Carton"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractedField"
+            },
+            "type": "array",
+            "title": "Fields",
+            "default": []
+          },
+          "missing_required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Required",
+            "default": []
+          },
+          "llm_offline": {
+            "type": "boolean",
+            "title": "Llm Offline",
+            "default": false
+          },
+          "extraction_notes": {
+            "type": "string",
+            "title": "Extraction Notes",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ProjectDraft",
+        "description": "Structured draft extracted from a free-text project description.\nEvery field carries provenance; missing fields are flagged so the UI can ask follow-up questions."
+      },
+      "Provenance": {
+        "properties": {
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "retrieval_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Date"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType",
+            "default": "USER_ENTERED"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "is_edited": {
+            "type": "boolean",
+            "title": "Is Edited",
+            "default": false
+          },
+          "evidence_snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_name"
+        ],
+        "title": "Provenance"
+      },
+      "RecommendationFeedback": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "RecommendationFeedback"
+      },
+      "RecommendationRun": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          },
+          "is_ai_reasoned": {
+            "type": "boolean",
+            "title": "Is Ai Reasoned",
+            "default": true
+          },
+          "recommended": {
+            "$ref": "#/components/schemas/RecommendedCandidate"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendedCandidate"
+            },
+            "type": "array",
+            "title": "Alternatives",
+            "default": []
+          },
+          "rejected_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/RejectedCandidate"
+            },
+            "type": "array",
+            "title": "Rejected Candidates",
+            "default": []
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "confidence_level": {
+            "type": "string",
+            "enum": [
+              "High",
+              "Medium",
+              "Low"
+            ],
+            "title": "Confidence Level"
+          },
+          "confidence_reason": {
+            "type": "string",
+            "title": "Confidence Reason"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions",
+            "default": []
+          },
+          "missing_data": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Data",
+            "default": []
+          },
+          "test_plan": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Test Plan",
+            "default": []
+          },
+          "locked_fields": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Locked Fields",
+            "default": {}
+          },
+          "refinement_history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Refinement History",
+            "default": []
+          },
+          "user_feedback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecommendationFeedback"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "project_id",
+          "model_name",
+          "recommended",
+          "explanation",
+          "confidence_level",
+          "confidence_reason"
+        ],
+        "title": "RecommendationRun"
+      },
+      "RecommendedCandidate": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "badge": {
+            "type": "string",
+            "title": "Badge"
+          },
+          "is_recommended": {
+            "type": "boolean",
+            "title": "Is Recommended",
+            "default": false
+          },
+          "carton_length_mm": {
+            "type": "number",
+            "title": "Carton Length Mm"
+          },
+          "carton_width_mm": {
+            "type": "number",
+            "title": "Carton Width Mm"
+          },
+          "carton_height_mm": {
+            "type": "number",
+            "title": "Carton Height Mm"
+          },
+          "board_grade": {
+            "type": "string",
+            "title": "Board Grade"
+          },
+          "board_thickness_mm": {
+            "type": "number",
+            "title": "Board Thickness Mm"
+          },
+          "ect_kn_m": {
+            "type": "number",
+            "title": "Ect Kn M"
+          },
+          "insert_type": {
+            "type": "string",
+            "title": "Insert Type"
+          },
+          "insert_material": {
+            "type": "string",
+            "title": "Insert Material"
+          },
+          "cushion_thickness_mm": {
+            "type": "number",
+            "title": "Cushion Thickness Mm"
+          },
+          "foam_design": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FoamDesignResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "orientation": {
+            "type": "string",
+            "title": "Orientation"
+          },
+          "units_per_carton": {
+            "type": "integer",
+            "title": "Units Per Carton",
+            "default": 1
+          },
+          "pallet_type": {
+            "type": "string",
+            "title": "Pallet Type",
+            "default": "Euro Pallet (1200 x 800 mm)"
+          },
+          "cartons_per_layer": {
+            "type": "integer",
+            "title": "Cartons Per Layer"
+          },
+          "layer_count": {
+            "type": "integer",
+            "title": "Layer Count"
+          },
+          "units_per_pallet": {
+            "type": "integer",
+            "title": "Units Per Pallet"
+          },
+          "pallet_utilization_pct": {
+            "type": "number",
+            "title": "Pallet Utilization Pct"
+          },
+          "pallet_overhang_mm": {
+            "type": "number",
+            "title": "Pallet Overhang Mm"
+          },
+          "stacking_height_mm": {
+            "type": "number",
+            "title": "Stacking Height Mm"
+          },
+          "bct_newtons": {
+            "type": "number",
+            "title": "Bct Newtons"
+          },
+          "bct_kgf": {
+            "type": "number",
+            "title": "Bct Kgf"
+          },
+          "stacking_load_kgf": {
+            "type": "number",
+            "title": "Stacking Load Kgf"
+          },
+          "safety_factor": {
+            "type": "number",
+            "title": "Safety Factor"
+          },
+          "box_perimeter_mm": {
+            "type": "number",
+            "title": "Box Perimeter Mm"
+          },
+          "carton_board_area_m2": {
+            "type": "number",
+            "title": "Carton Board Area M2"
+          },
+          "material_savings_pct": {
+            "type": "number",
+            "title": "Material Savings Pct"
+          },
+          "volume_savings_pct": {
+            "type": "number",
+            "title": "Volume Savings Pct"
+          },
+          "cost_per_unit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Unit"
+          },
+          "cost_savings_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Savings Pct"
+          },
+          "cost_savings_per_1000_units": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Savings Per 1000 Units"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "EGP"
+          },
+          "packout_steps": {
+            "items": {
+              "$ref": "#/components/schemas/PackoutStep"
+            },
+            "type": "array",
+            "title": "Packout Steps",
+            "default": []
+          },
+          "iso_constraint_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Iso Constraint Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "name",
+          "badge",
+          "carton_length_mm",
+          "carton_width_mm",
+          "carton_height_mm",
+          "board_grade",
+          "board_thickness_mm",
+          "ect_kn_m",
+          "insert_type",
+          "insert_material",
+          "cushion_thickness_mm",
+          "orientation",
+          "cartons_per_layer",
+          "layer_count",
+          "units_per_pallet",
+          "pallet_utilization_pct",
+          "pallet_overhang_mm",
+          "stacking_height_mm",
+          "bct_newtons",
+          "bct_kgf",
+          "stacking_load_kgf",
+          "safety_factor",
+          "box_perimeter_mm",
+          "carton_board_area_m2",
+          "material_savings_pct",
+          "volume_savings_pct"
+        ],
+        "title": "RecommendedCandidate"
+      },
+      "RefinementRequest": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "locked_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "title": "RefinementRequest"
+      },
+      "RejectedCandidate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "carton_length_mm": {
+            "type": "number",
+            "title": "Carton Length Mm"
+          },
+          "carton_width_mm": {
+            "type": "number",
+            "title": "Carton Width Mm"
+          },
+          "carton_height_mm": {
+            "type": "number",
+            "title": "Carton Height Mm"
+          },
+          "failed_check": {
+            "type": "string",
+            "title": "Failed Check"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "carton_length_mm",
+          "carton_width_mm",
+          "carton_height_mm",
+          "failed_check",
+          "explanation"
+        ],
+        "title": "RejectedCandidate"
+      },
+      "ReportRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "alternative_id": {
+            "type": "string",
+            "title": "Alternative Id"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "html",
+              "json",
+              "dxf"
+            ],
+            "title": "Format",
+            "default": "pdf"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ar"
+            ],
+            "title": "Language",
+            "default": "en"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "alternative_id"
+        ],
+        "title": "ReportRequest"
+      },
+      "SearchProviderTestRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "serper"
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "SearchProviderTestRequest"
+      },
+      "SourceEvidence": {
+        "properties": {
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          },
+          "fetched_at": {
+            "type": "string",
+            "title": "Fetched At"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "is_official": {
+            "type": "boolean",
+            "title": "Is Official",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_name",
+          "source_url",
+          "snippet",
+          "fetched_at",
+          "confidence"
+        ],
+        "title": "SourceEvidence"
+      },
+      "SourceType": {
+        "type": "string",
+        "enum": [
+          "EL_ARABY_DATASHEET",
+          "EL_ARABY_WEBSITE",
+          "PUBLIC_RETAIL",
+          "USER_ENTERED",
+          "CAD_EXTRACTED",
+          "AI_ESTIMATED",
+          "FROM_DESCRIPTION",
+          "DERIVED",
+          "OFFICIAL_COMPANY"
+        ],
+        "title": "SourceType"
+      },
+      "SpecStatus": {
+        "type": "string",
+        "enum": [
+          "verified",
+          "found_single_source",
+          "user",
+          "calculated",
+          "ai_estimated",
+          "missing"
+        ],
+        "title": "SpecStatus"
+      },
+      "StandardsCatalogEntryInput": {
+        "properties": {
+          "organization": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 2,
+            "title": "Organization"
+          },
+          "organization_other": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Other"
+          },
+          "standard_identifier": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Standard Identifier"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 6,
+            "title": "Title"
+          },
+          "title_ar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Ar"
+          },
+          "scope_summary": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 20,
+            "title": "Scope Summary"
+          },
+          "scope_summary_ar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Summary Ar"
+          },
+          "what_it_tests": {
+            "type": "string",
+            "title": "What It Tests"
+          },
+          "when_it_applies": {
+            "type": "string",
+            "title": "When It Applies"
+          },
+          "source_url": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Source Url",
+            "default": ""
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "last_verified_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified Date"
+          },
+          "check_type": {
+            "type": "string",
+            "title": "Check Type",
+            "default": "PHYSICAL_TEST"
+          },
+          "applicability_rules": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Applicability Rules",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "organization",
+          "standard_identifier",
+          "title",
+          "scope_summary",
+          "what_it_tests",
+          "when_it_applies"
+        ],
+        "title": "StandardsCatalogEntryInput"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

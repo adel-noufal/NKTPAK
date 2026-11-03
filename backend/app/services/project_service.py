@@ -7,6 +7,7 @@ Zero seed fixtures in runtime path.
 from __future__ import annotations
 
 import logging
+import json
 from typing import Any, Optional, List, Dict
 from datetime import datetime, timezone
 
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import Project, SystemSettings
 from app.schemas.schemas import ProjectCreate, AdminSettingsUpdate, AdminSettingsResponse, DimensionsInput, ComponentInput
+from app.optimization.foam import CushionMaterial, empty_material_library
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ def create_project(
     proj = Project(
         name=project_in.name,
         brand=prod.brand,
-        model_number=prod.model,
+        model_number=prod.model or "",
         sku=prod.sku,
         description=project_in.description,
         status=status,
@@ -213,3 +215,35 @@ def update_admin_settings(db: Session, settings_in: AdminSettingsUpdate) -> Admi
                 obj.value = str(v)
     db.commit()
     return get_admin_settings(db)
+
+
+def get_foam_materials(db: Session) -> list[CushionMaterial]:
+    """Load editable cushioning records, leaving unknown supplier properties unset."""
+    setting = db.query(SystemSettings).filter(SystemSettings.key == "foam_materials").first()
+    if not setting:
+        return empty_material_library()
+    try:
+        raw_materials = json.loads(setting.value)
+        return [CushionMaterial.model_validate(item) for item in raw_materials]
+    except (TypeError, ValueError, json.JSONDecodeError):
+        logger.exception("Stored foam material library is invalid")
+        raise
+
+
+def update_foam_materials(db: Session, materials: list[CushionMaterial]) -> list[CushionMaterial]:
+    ids = [material.material_id for material in materials]
+    if len(ids) != len(set(ids)):
+        raise ValueError("Foam material IDs must be unique.")
+    setting = db.query(SystemSettings).filter(SystemSettings.key == "foam_materials").first()
+    value = json.dumps([material.model_dump(mode="json") for material in materials])
+    if setting:
+        setting.value = value
+    else:
+        db.add(SystemSettings(key="foam_materials", value=value))
+    for project in db.query(Project).all():
+        if project.optimization_result and project.optimization_result.get("ai_recommendation"):
+            result = dict(project.optimization_result)
+            result.pop("ai_recommendation", None)
+            project.optimization_result = result
+    db.commit()
+    return get_foam_materials(db)

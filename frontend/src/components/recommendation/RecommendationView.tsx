@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getProjectRecommendation,
@@ -6,10 +6,13 @@ import {
   refineProjectRecommendation,
   acceptRecommendationCandidate,
   submitRecommendationFeedback,
+  reasonProjectRecommendation,
 } from '../../api/projects'
 import type { FragilityClass, RecommendationRun, RecommendedCandidate } from '../../types'
 import { PackagingViewer3D } from '../viewer/PackagingViewer3D'
 import type { ProductModelProject } from '../viewer/productModel'
+import { useProjectStore } from '../../store/projectStore'
+import { useTranslation } from 'react-i18next'
 
 interface RecommendationViewProps {
   projectId: string
@@ -30,18 +33,42 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
   fragilityClass,
   requiredClearanceMm,
 }) => {
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const { setSelectedView } = useProjectStore()
+  const reasoningStarted = useRef(false)
   const [refinementInput, setRefinementInput] = useState('')
   const [activeVisual, setActiveVisual] = useState<'3d' | 'packout' | 'pallet' | 'dieline'>('3d')
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null)
+  const [reasoningPending, setReasoningPending] = useState(false)
+  const [reasoningError, setReasoningError] = useState<string | null>(null)
 
   const { data: run, isLoading, error } = useQuery<RecommendationRun>({
     queryKey: ['recommendation', projectId],
     queryFn: () => getProjectRecommendation(projectId),
     enabled: !!projectId,
   })
+
+  useEffect(() => {
+    setSelectedView('inside')
+  }, [setSelectedView])
+
+  useEffect(() => {
+    if (!run || run.is_ai_reasoned || reasoningStarted.current) return
+    reasoningStarted.current = true
+    setReasoningPending(true)
+    void reasonProjectRecommendation(projectId)
+      .then((reasonedRun) => {
+        queryClient.setQueryData(['recommendation', projectId], reasonedRun)
+        setReasoningPending(false)
+      })
+      .catch((err: unknown) => {
+        setReasoningError(err instanceof Error ? err.message : 'AI reasoning request failed.')
+        setReasoningPending(false)
+      })
+  }, [projectId, queryClient, run])
 
   const regenMutation = useMutation({
     mutationFn: () => generateProjectRecommendation(projectId),
@@ -102,6 +129,9 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
   }
 
   const rec = run.recommended
+  const curveBackedThickness = rec.foam_design?.status === 'CURVE_EVALUATED'
+    ? rec.foam_design.selected_thickness_mm
+    : null
 
   // Build alternative object for PackagingViewer3D
   const viewerAlt = {
@@ -110,7 +140,9 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
     outer_length_mm: rec.carton_length_mm,
     outer_width_mm: rec.carton_width_mm,
     outer_height_mm: rec.carton_height_mm,
-    insert_thickness_mm: rec.cushion_thickness_mm,
+    insert_thickness_mm: curveBackedThickness ?? 0,
+    board_thickness_mm: rec.board_thickness_mm,
+    foam_material: curveBackedThickness != null ? rec.foam_design?.material_name : undefined,
   } as any
 
   return (
@@ -170,7 +202,9 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
               </span>
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              {rec.board_grade} ({rec.board_thickness_mm} mm) · {rec.insert_type} ({rec.cushion_thickness_mm} mm buffer)
+              {rec.board_grade} ({rec.board_thickness_mm} mm) · {curveBackedThickness != null
+                ? `${rec.foam_design?.material_name || 'Supplier material'} (${curveBackedThickness} mm)`
+                : t('recommendation.foamNoCurve', 'No curve-backed thickness calculated')}
             </p>
           </div>
 
@@ -206,7 +240,57 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
             Engineering Rationale
           </div>
           <p className="whitespace-pre-wrap">{run.explanation}</p>
+          {reasoningPending && <p role="status" className="mt-2 text-[10px] text-teal-700 dark:text-teal-300">{t('recommendation.aiReasoningPending', 'AI reasoning is being generated separately from the calculated result…')}</p>}
+          {reasoningError && (
+            <p role="alert" className="mt-2 text-[10px] text-rose-700 dark:text-rose-300">
+              AI reasoning unavailable: {reasoningError}
+              <button type="button" className="ms-2 underline" onClick={() => {
+                reasoningStarted.current = false
+                setReasoningError(null)
+                void reasonProjectRecommendation(projectId)
+                  .then((reasonedRun) => queryClient.setQueryData(['recommendation', projectId], reasonedRun))
+                  .catch((err: unknown) => setReasoningError(err instanceof Error ? err.message : 'AI reasoning request failed.'))
+              }}>Retry</button>
+            </p>
+          )}
         </div>
+
+        {rec.foam_design && (
+          <section aria-label="Foam cushioning calculation" className="rounded-lg border border-teal-200 bg-teal-50/60 p-4 text-xs dark:border-teal-900 dark:bg-teal-950/20">
+            <h3 className="font-semibold text-stone-900 dark:text-stone-100">{t('recommendation.foamTitle', 'Foam / cushioning calculation')}</h3>
+            <p className="mt-1 text-[11px] text-stone-600 dark:text-stone-300">{rec.foam_design.calculation_label}</p>
+            <p className="mt-2 font-medium">
+              {rec.foam_design.status === 'CURVE_EVALUATED' && rec.foam_design.selected_thickness_mm != null
+                ? `${rec.foam_design.material_name || 'Supplier material'} · ${rec.foam_design.selected_thickness_mm} mm · ${rec.foam_design.estimated_peak_deceleration_g} G estimated peak`
+                : t('recommendation.foamNoCurve', 'No curve-backed thickness calculated')}
+            </p>
+            {rec.foam_design.foam_volume_mm3 != null && (
+              <p className="mt-1 text-[11px] text-stone-600 dark:text-stone-300">
+                {t('recommendation.foamVolume', 'Foam volume')}: {(rec.foam_design.foam_volume_mm3 / 1_000_000).toFixed(3)} L
+                {rec.foam_design.foam_weight_kg != null ? ` · ${rec.foam_design.foam_weight_kg.toFixed(3)} kg` : ''}
+                {rec.foam_design.foam_cost != null ? ` · ${rec.foam_design.foam_cost.toFixed(2)} (configured material cost)` : ` · ${t('recommendation.foamCostUnavailable', 'Cost not available — enter material cost')}`}
+              </p>
+            )}
+            {rec.foam_design.supports.length > 0 && (
+              <ul className="mt-2 space-y-1 text-stone-600 dark:text-stone-300">
+                {rec.foam_design.supports.map((support) => (
+                  <li key={support.name}>{support.name}: {support.carried_weight_kg} kg ÷ {support.bearing_area_mm2} mm² = {support.static_stress_kpa.toFixed(3)} kPa static stress</li>
+                ))}
+              </ul>
+            )}
+            {rec.foam_design.warnings.length > 0 && (
+              <ul className="mt-2 list-disc space-y-1 ps-4 text-amber-800 dark:text-amber-300">
+                {rec.foam_design.warnings.map((warning) => (
+                  <li key={warning}>
+                    {i18n.language.startsWith('ar') && warning.startsWith('No cushion curve')
+                      ? t('recommendation.foamNoCurveWarning', warning)
+                      : warning}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* Specs Table Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -234,7 +318,9 @@ export const RecommendationView: React.FC<RecommendationViewProps> = ({
           <div className="p-2.5 rounded bg-stone-50 dark:bg-stone-800/40 border border-stone-200 dark:border-stone-700/60">
             <span className="text-[10px] text-stone-400 block mb-0.5">Inserts / Cushions</span>
             <span className="font-semibold text-stone-800 dark:text-stone-200">
-              {rec.insert_type} ({rec.cushion_thickness_mm} mm)
+              {curveBackedThickness != null
+                ? `${rec.foam_design?.material_name || 'Supplier material'} (${curveBackedThickness} mm)`
+                : t('recommendation.foamNoCurve', 'No curve-backed thickness calculated')}
             </span>
           </div>
         </div>

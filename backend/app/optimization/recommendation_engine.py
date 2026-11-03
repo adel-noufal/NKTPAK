@@ -6,6 +6,7 @@ Zero invented numbers: every dimension, BCT value, and pallet metric comes from 
 
 from __future__ import annotations
 import math
+import re
 import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -19,6 +20,12 @@ from app.schemas.recommendation_schemas import (
 )
 from app.services.assistant_service import get_llm_config, call_gemini, call_anthropic_claude
 from app.standards.registry import get_recommendation_constraints
+from app.optimization.foam import (
+    CushionMaterial,
+    FoamSupportInput,
+    calculate_foam_design,
+    unconfigured_foam_design,
+)
 
 
 def _calculate_mckee(ect_kn_m: float, perimeter_mm: float, thickness_mm: float) -> tuple[float, float]:
@@ -63,6 +70,16 @@ def _compute_board_area(l_mm: float, w_mm: float, h_mm: float) -> float:
     return max(0.01, round(blank_l_m * blank_w_m, 4))
 
 
+def _required_positive(value: Any, label: str) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} is required to calculate packaging dimensions.") from exc
+    if not math.isfinite(numeric) or numeric <= 0:
+        raise ValueError(f"{label} must be a positive measured value.")
+    return numeric
+
+
 def generate_candidates(
     product: Dict[str, Any],
     baseline: Dict[str, Any],
@@ -79,11 +96,34 @@ def generate_candidates(
 
     # Extract product dimensions
     p_dims = product.get("packed_dimensions") or {}
-    p_l = float(p_dims.get("length") or product.get("product_length_mm") or 300.0)
-    p_w = float(p_dims.get("width") or product.get("product_width_mm") or 200.0)
-    p_h = float(p_dims.get("height") or product.get("product_height_mm") or 150.0)
-    p_wt = float(product.get("weight_kg") or product.get("net_weight_kg") or 5.0)
+    p_l = _required_positive(p_dims.get("length") or product.get("product_length_mm"), "Product length (mm)")
+    p_w = _required_positive(p_dims.get("width") or product.get("product_width_mm"), "Product width (mm)")
+    p_h = _required_positive(p_dims.get("height") or product.get("product_height_mm"), "Product height (mm)")
+    p_wt = _required_positive(product.get("weight_kg") or product.get("net_weight_kg"), "Product weight (kg)")
     fragility = str(product.get("fragility_class") or product.get("fragility") or "MEDIUM").upper()
+    foam_design = unconfigured_foam_design()
+    foam_input = product.get("foam_design_input")
+    if isinstance(foam_input, dict):
+        try:
+            foam_design = calculate_foam_design(
+                material=CushionMaterial.model_validate(foam_input["material"]) if foam_input.get("material") else None,
+                supports=[FoamSupportInput.model_validate(item) for item in foam_input.get("supports", [])],
+                drop_height_mm=float(foam_input["drop_height_mm"]),
+                fragility_limit_g=float(foam_input["fragility_limit_g"]),
+                safety_factor=float(foam_input["safety_factor"]),
+                product_dimensions_mm={"length": p_l, "width": p_w, "height": p_h},
+                requested_max_thickness_mm=(
+                    float(foam_input["requested_max_thickness_mm"])
+                    if foam_input.get("requested_max_thickness_mm") is not None
+                    else None
+                ),
+            )
+            if product.get("foam_material_selection_warning"):
+                foam_design.warnings.append(str(product["foam_material_selection_warning"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            foam_design = unconfigured_foam_design()
+            foam_design.status = "INVALID_INPUT"
+            foam_design.warnings = [f"Foam calculation not configured: {exc}"]
 
     # ── ISO Constraints from registry ──────────────────────────────────────────
     # These are the engineering rules that candidates MUST satisfy.
@@ -95,10 +135,13 @@ def generate_candidates(
     iso_pallet_W = float(iso.get("pallet_max_W_mm", 800.0))
 
     # Extract baseline
-    b_l = float(baseline.get("carton_outer_length_mm") or baseline.get("carton_length_mm") or (p_l + 60.0))
-    b_w = float(baseline.get("carton_outer_width_mm") or baseline.get("carton_width_mm") or (p_w + 60.0))
-    b_h = float(baseline.get("carton_outer_height_mm") or baseline.get("carton_height_mm") or (p_h + 60.0))
-    b_cost = float(baseline.get("carton_cost_per_unit") or baseline.get("unit_cost") or 22.5)
+    b_l = _required_positive(baseline.get("carton_outer_length_mm") or baseline.get("carton_length_mm"), "Baseline carton length (mm)")
+    b_w = _required_positive(baseline.get("carton_outer_width_mm") or baseline.get("carton_width_mm"), "Baseline carton width (mm)")
+    b_h = _required_positive(baseline.get("carton_outer_height_mm") or baseline.get("carton_height_mm"), "Baseline carton height (mm)")
+    baseline_cost = baseline.get("carton_cost_per_unit")
+    if baseline_cost is None:
+        baseline_cost = baseline.get("unit_cost")
+    b_cost = float(baseline_cost) if baseline_cost is not None else None
     b_area = _compute_board_area(b_l, b_w, b_h)
     b_vol = (b_l * b_w * b_h) / 1_000_000.0  # liters
 
@@ -194,7 +237,8 @@ def generate_candidates(
     candidates: List[RecommendedCandidate] = []
 
     for c in candidates_def:
-        clr = c["clearance"]
+        clr = foam_design.selected_thickness_mm or c["clearance"]
+        c["cushion_th"] = clr
         # Allow locked field overrides
         c_l = float(locked.get("carton_length_mm") or math.ceil((p_l + clr * 2 + c["thickness"] * 2) / 5.0) * 5.0)
         c_w = float(locked.get("carton_width_mm") or math.ceil((p_w + clr * 2 + c["thickness"] * 2) / 5.0) * 5.0)
@@ -227,9 +271,9 @@ def generate_candidates(
 
         # Unit cost estimate proportional to board area reduction
         cost_ratio = board_area / max(0.01, b_area)
-        unit_cost = round(b_cost * cost_ratio, 2)
-        cost_sav_pct = round(max(0.0, (b_cost - unit_cost) / max(0.01, b_cost) * 100.0), 1)
-        cost_sav_1k = round(max(0.0, (b_cost - unit_cost) * 1000.0), 2)
+        unit_cost = round(b_cost * cost_ratio, 2) if b_cost is not None else None
+        cost_sav_pct = round(max(0.0, (b_cost - unit_cost) / max(0.01, b_cost) * 100.0), 1) if b_cost is not None and unit_cost is not None else None
+        cost_sav_1k = round(max(0.0, (b_cost - unit_cost) * 1000.0), 2) if b_cost is not None and unit_cost is not None else None
 
         # Build ISO standard compliance notes for this candidate
         iso_notes = []
@@ -265,6 +309,7 @@ def generate_candidates(
             insert_type=c["insert_type"],
             insert_material=c["insert_material"],
             cushion_thickness_mm=c["cushion_th"],
+            foam_design=foam_design,
             orientation=c["orientation"],
             units_per_carton=1,
             pallet_type=f"Euro Pallet ({int(iso_pallet_L)} x {int(iso_pallet_W)} mm)",
@@ -327,6 +372,7 @@ def generate_recommendation_run(
     baseline: Dict[str, Any],
     locked_fields: Optional[Dict[str, Any]] = None,
     refinement_prompt: Optional[str] = None,
+    enable_ai_reasoning: bool = True,
 ) -> RecommendationRun:
     """
     Produce a full verifiable AI Recommendation Run.
@@ -341,7 +387,67 @@ def generate_recommendation_run(
     fragility = str(product.get("fragility_class") or product.get("fragility") or "MEDIUM")
     iso_constraints = get_recommendation_constraints(fragility)
 
-    candidates, rejected = generate_candidates(product, baseline, locked_fields, iso_constraints)
+    recommendation_product = dict(product)
+    foam_input = recommendation_product.get("foam_design_input")
+    material_options = recommendation_product.get("foam_material_options") or []
+    selection_warning = None
+    if isinstance(foam_input, dict):
+        foam_input = dict(foam_input)
+        if "foam_material_options" in recommendation_product and foam_input.get("material"):
+            material_payload = foam_input["material"]
+            material_reference = foam_input.get("material_id")
+            if not material_reference and isinstance(material_payload, dict):
+                material_reference = material_payload.get("material_id")
+            selected = next(
+                (item for item in material_options if item.get("material_id") == material_reference and item.get("enabled")),
+                None,
+            )
+            if selected:
+                foam_input["material"] = selected
+                foam_input["material_id"] = selected.get("material_id")
+            else:
+                foam_input.pop("material", None)
+                selection_warning = "Cushion material is not enabled in the Settings material library."
+        material_id = foam_input.get("material_id")
+        if material_id:
+            selected = next(
+                (item for item in material_options if item.get("material_id") == material_id and item.get("enabled")),
+                None,
+            )
+            if selected:
+                foam_input["material"] = selected
+            else:
+                foam_input.pop("material", None)
+                selection_warning = "Selected cushioning material is missing or disabled in Settings."
+        if refinement_prompt:
+            material_match = re.search(r"use\s+(.+?)\s+instead\s+of\s+(.+)", refinement_prompt, re.IGNORECASE)
+            if material_match:
+                requested_name = material_match.group(1).strip().lower()
+                selected = next(
+                    (
+                        item for item in material_options
+                        if item.get("enabled") and requested_name in f"{item.get('material_id', '')} {item.get('name', '')}".lower()
+                    ),
+                    None,
+                )
+                if selected:
+                    foam_input["material"] = selected
+                    foam_input["material_id"] = selected.get("material_id")
+                    selection_warning = None
+                else:
+                    selection_warning = f"No enabled supplier material matching '{material_match.group(1).strip()}' is configured."
+        thickness_match = re.search(
+            r"(?:reduce|set|make)\s+(?:the\s+)?foam\s+(?:to|=)\s*(\d+(?:\.\d+)?)\s*mm",
+            refinement_prompt or "",
+            re.IGNORECASE,
+        )
+        if thickness_match:
+            foam_input["requested_max_thickness_mm"] = float(thickness_match.group(1))
+        recommendation_product["foam_design_input"] = foam_input
+        if selection_warning:
+            recommendation_product["foam_material_selection_warning"] = selection_warning
+
+    candidates, rejected = generate_candidates(recommendation_product, baseline, locked_fields, iso_constraints)
 
     # Pick recommended candidate based on refinement prompt or default
     recommended = candidates[0]
@@ -361,22 +467,22 @@ def generate_recommendation_run(
 
     # Test Plan
     test_plan = [
-        "ISO 2234: Complete static stacking test at safety factor 4.5 for 30 consecutive days under 50% RH.",
-        "ISO 2248: Free-fall drop test from 800 mm height across 10 orientations (1 corner, 3 edges, 6 faces).",
-        "ISO 13355: Random vibration profile simulation for 180 minutes representing road and freight transit.",
+        "ISO 2234: Configure and perform a physical stacking test using the licensed procedure and project-specific storage conditions.",
+        "ISO 2248: Configure and perform a physical drop test using the selected distribution environment and licensed procedure.",
+        "Cushioning: Validate the selected cushion material and product fragility limit in a laboratory; enter supplier curve and measured shock data before treating a foam thickness as curve-selected.",
+        "ISTA: Select a procedure only after shipment mode and package scope are confirmed; test levels are not configured here.",
     ]
 
     assumptions = [
         f"ISO 2248 ENGINEERING_ASSUMPTION: Clearance {recommended.cushion_thickness_mm} mm ≥ "
         f"{iso_constraints['min_clearance_mm']} mm floor for {fragility} fragility. Physical drop test required.",
-        f"ISO 2234 ENGINEERING_ASSUMPTION: Safety Factor {recommended.safety_factor:.2f} ≥ "
-        f"{iso_constraints['safety_factor_min']} for 30-day ambient stacking. Physical stacking test required.",
+        f"ISO 2234 ENGINEERING_ASSUMPTION: Calculated stacking safety factor {recommended.safety_factor:.2f}; configure storage duration and physical stacking conditions before validation.",
         f"ISO 3676/3394: Pallet boundary {int(iso_constraints['pallet_max_L_mm'])}×"
         f"{int(iso_constraints['pallet_max_W_mm'])} mm Euro Pallet. {recommended.cartons_per_layer} cartons/layer.",
         f"ISO 18602: Volume utilisation target ≥ {iso_constraints['vol_util_min']:.0%}. "
         "Right-sizing validated by deterministic parametric calculation.",
         "Board ECT values assume standard commercial linerboard (175/127/175 gsm kraftliner equivalent).",
-        "Warehouse storage assumes 23°C / 50% RH ambient conditions without direct weather exposure.",
+        "Warehouse temperature, humidity, and storage duration are not supplied; validate material creep and stacking effects for the project conditions.",
         iso_constraints["disclaimer"],
     ]
 
@@ -395,7 +501,7 @@ def generate_recommendation_run(
     explanation = ""
     is_ai = False
 
-    if api_key:
+    if api_key and enable_ai_reasoning:
         try:
             p_name = product.get("name") or "Product"
             # Build ISO constraint summary for LLM — it MUST cite these rules
